@@ -1,0 +1,266 @@
+<?php
+
+namespace Dennisbusk\DebugNotary\Http\Controllers;
+
+use Dennisbusk\DebugNotary\Facades\DebugNotary;
+use Dennisbusk\DebugNotary\Models\RecordedBug;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+class DebugNotaryController extends Controller
+{
+    public function index(Request $request)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        $search = $request->input('search');
+        $tag = $request->input('tag');
+        $severity = $request->input('severity');
+        $logType = $request->input('log_type');
+        $status = $request->input('status');
+
+        $bugs = RecordedBug::query()
+            ->with('user')
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('message', 'like', '%'.$search.'%')
+                        ->orWhere('file', 'like', '%'.$search.'%')
+                        ->orWhere('user_note', 'like', '%'.$search.'%');
+                });
+            })
+            ->when($tag, function ($query) use ($tag) {
+                $query->whereJsonContains('tags', $tag);
+            })
+            ->when($severity, function ($query) use ($severity) {
+                $query->where('severity', $severity);
+            })
+            ->when($logType, function ($query) use ($logType) {
+                $query->where('log_type', $logType);
+            })
+            ->when($status, function ($query) use ($status) {
+                $query->where('status', $status);
+            })
+            ->latest('last_seen_at')
+            ->paginate(20);
+
+        // Hent unikke tags til filter
+        $allTags = RecordedBug::whereNotNull('tags')
+            ->get()
+            ->pluck('tags')
+            ->flatten()
+            ->unique()
+            ->filter();
+
+        return view('debug-notary::index', [
+            'bugs' => $bugs,
+            'search' => $search,
+            'tag' => $tag,
+            'severity' => $severity,
+            'logType' => $logType,
+            'status' => $status,
+            'allTags' => $allTags,
+            'severities' => array_keys(RecordedBug::LEVELS),
+            'statuses' => [
+                RecordedBug::STATUS_OPEN,
+                RecordedBug::STATUS_IN_PROGRESS,
+                RecordedBug::STATUS_RESOLVED,
+            ],
+        ]);
+    }
+
+    public function storeNotary(Request $request)
+    {
+        // Hvis det er en JS fejl logning
+        if ($request->input('log_type') === 'javascript') {
+            $message = $request->input('message');
+            $file = $request->input('file', 'browser');
+            $line = $request->input('line', 0);
+            $hash = md5($message.$file.$line);
+
+            $bug = RecordedBug::firstOrNew(['hash' => $hash]);
+            $isNew = ! $bug->exists;
+
+            if ($isNew) {
+                $bug->message = $message;
+                $bug->file = $file;
+                $bug->line = $line;
+                $bug->log_type = 'javascript';
+                $bug->severity = 'error';
+            }
+
+            $userContext = DebugNotary::resolveUserContext();
+            $bug->url = $request->input('url', request()->fullUrl());
+            $bug->last_seen_at = now();
+            $bug->count += 1;
+            $bug->user_id = $userContext['user_id'];
+            $bug->user_role = $userContext['user_role'];
+            $bug->browser_data = DebugNotary::maskData($request->input('browser_data', []));
+
+            $bug->updateTrendData();
+            $bug->updateSeverity();
+            $bug->save();
+
+            if ($isNew) {
+                // Vi bruger Facade-kaldet for at sende notifikationer
+                DebugNotary::notifyNewBug($bug);
+            }
+
+            return response()->json(['success' => true]);
+        }
+
+        $request->validate([
+            'screenshot' => ['nullable', 'string', 'max:10000000'], // Tillad stor base64, men sæt grænse
+            'note' => ['nullable', 'string', 'max:2000'],
+            'url' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        if ($request->hasFile('screenshot')) {
+            $request->validate([
+                'screenshot' => ['image', 'mimes:jpeg,png,jpg,gif', 'max:5120'],
+            ]);
+        }
+
+        $note = $request->input('note');
+        $tags = array_map('trim', explode(',', $request->input('tags', '')));
+        $tags = array_filter($tags);
+        $url = $request->input('url');
+        $browserData = $request->input('browser_data');
+        if (is_string($browserData)) {
+            $browserData = json_decode($browserData, true);
+        }
+
+        $screenshotPath = null;
+        $screenshotBase64 = null;
+        $storageMode = config('debug-notary.screenshot_storage', 'base64');
+
+        if ($request->hasFile('screenshot')) {
+            $file = $request->file('screenshot');
+            $imageName = 'notary_'.time().'_'.Str::random(10).'.'.$file->getClientOriginalExtension();
+            $screenshotPath = 'debug-notary/'.$imageName;
+
+            Storage::disk('public')->put($screenshotPath, file_get_contents($file));
+
+            if ($storageMode === 'base64' || $storageMode === 'both') {
+                $screenshotBase64 = 'data:image/'.$file->getClientOriginalExtension().';base64,'.base64_encode(file_get_contents($file));
+            }
+        } elseif ($request->filled('screenshot')) {
+            $screenshotData = $request->input('screenshot');
+
+            if (Str::startsWith($screenshotData, 'data:image')) {
+                if ($storageMode === 'base64' || $storageMode === 'both') {
+                    $screenshotBase64 = $screenshotData;
+                }
+
+                if ($storageMode === 'file' || $storageMode === 'both') {
+                    $extension = explode('/', explode(':', substr($screenshotData, 0, Str::position($screenshotData, ';')))[1])[1];
+                    $image = str_replace('data:image/'.$extension.';base64,', '', $screenshotData);
+                    $image = str_replace(' ', '+', $image);
+                    $imageName = 'notary_'.time().'_'.Str::random(10).'.'.$extension;
+                    $screenshotPath = 'debug-notary/'.$imageName;
+
+                    Storage::disk('public')->put($screenshotPath, base64_decode($image));
+                }
+            }
+        }
+
+        $userContext = DebugNotary::resolveUserContext();
+
+        $bug = RecordedBug::create([
+            'log_type' => 'notary',
+            'message' => __('debug-notary::messages.manual_log', ['note' => Str::limit($note, 50)]),
+            'user_note' => $note,
+            'tags' => $tags,
+            'url' => $url,
+            'browser_data' => DebugNotary::maskData($browserData ?? []),
+            'screenshot' => $screenshotBase64,
+            'screenshot_path' => $screenshotPath,
+            'severity' => 'info',
+            'file' => 'browser',
+            'line' => 0,
+            'last_seen_at' => now(),
+            'user_id' => $userContext['user_id'],
+            'user_role' => $userContext['user_role'],
+        ]);
+
+        $bug->updateTrendData();
+        $bug->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        $request->validate([
+            'status' => 'required|string|in:open,in_progress,resolved',
+        ]);
+
+        $bug = RecordedBug::findOrFail($id);
+        $bug->status = $request->input('status');
+        $bug->save();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->back()->with('message', __('debug-notary::messages.status_updated'));
+    }
+
+    public function destroy($id)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        RecordedBug::findOrFail($id)->delete();
+
+        return redirect()->back()->with('message', __('debug-notary::messages.bug_deleted'));
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        if ($request->boolean('delete_all')) {
+            $search = $request->input('search');
+            $tag = $request->input('tag');
+
+            $query = RecordedBug::query()
+                ->when($search, function ($query) use ($search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('message', 'like', '%'.$search.'%')
+                            ->orWhere('file', 'like', '%'.$search.'%')
+                            ->orWhere('user_note', 'like', '%'.$search.'%');
+                    });
+                })
+                ->when($tag, function ($query) use ($tag) {
+                    $query->whereJsonContains('tags', $tag);
+                });
+
+            $count = $query->count();
+            $query->delete();
+
+            return redirect()->back()->with('message', __('debug-notary::messages.bugs_deleted', ['count' => $count]));
+        }
+
+        $ids = $request->input('ids', []);
+
+        if (empty($ids)) {
+            return redirect()->back()->with('message', __('debug-notary::messages.no_bugs_selected'));
+        }
+
+        RecordedBug::whereIn('id', $ids)->delete();
+
+        return redirect()->back()->with('message', __('debug-notary::messages.bugs_deleted', ['count' => count($ids)]));
+    }
+}
