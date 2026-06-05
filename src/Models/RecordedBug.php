@@ -72,6 +72,11 @@ class RecordedBug extends Model
             'user_id' => 'integer',
         ];
 
+    protected $attributes
+        = [
+            'status' => self::STATUS_OPEN,
+        ];
+
     public function user()
     {
         // Vi antager at Auth::user() returnerer en model.
@@ -95,9 +100,9 @@ class RecordedBug extends Model
     public static function record(\Throwable $e): self
     {
         try {
-            $message = $e->getMessage();
-            $file = $e->getFile();
-            $line = $e->getLine();
+            $message = $e->getMessage() ?: 'No message';
+            $file = $e->getFile() ?: 'unknown';
+            $line = $e->getLine() ?: 0;
             $hash = md5($message.$file.$line);
 
             $userContext = DebugNotary::resolveUserContext();

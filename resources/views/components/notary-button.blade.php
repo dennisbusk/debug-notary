@@ -29,7 +29,7 @@
          x-transition:leave-end="opacity-0 scale-90"
          class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 debug-notary-ignore" x-cloak>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col" @click.away="closeModal()">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" @click.away="closeModal()">
             <div class="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-yellow-400">
                 <h3 class="text-lg font-bold text-gray-900">{{ __('debug-notary::messages.debug_notary_report') }}</h3>
                 <button @click="closeModal()" class="text-gray-700 hover:text-black text-2xl">&times;</button>
@@ -129,6 +129,7 @@
                         }
                     });
 
+                    @if(config('debug-notary.console_log', true))
                     // JS Error tracking
                     window.addEventListener('error', (event) => {
                         this.logJsError(event.message, event.filename, event.lineno, event.colno, event.error);
@@ -141,6 +142,7 @@
                         }
                         this.logJsError(message, window.location.href, 0, 0, event.reason);
                     });
+                    @endif
                 },
 
                 async logJsError(message, file, line, col, error) {
@@ -149,7 +151,9 @@
                     if (message && message.includes('markerjs2')) return;
 
                     const data = {
-                        message: message,
+                        message: message.startsWith('Unhandled Rejection')
+                            ? message.replace('Unhandled Rejection', '{{ __('debug-notary::messages.unhandled_rejection') }}')
+                            : message,
                         file: file,
                         line: line,
                         log_type: 'javascript',
@@ -203,7 +207,7 @@
                     if (!this.screenshotUrl) return;
 
                     if (typeof markerjs2 === 'undefined') {
-                        alert('Marker.js library is not loaded. Please check your internet connection or CDN availability.');
+                        alert('{{ __('debug-notary::messages.alert_markerjs_not_loaded') }}');
                         return;
                     }
 
@@ -234,7 +238,7 @@
 
                 async submitReport() {
                     if (!this.screenshotFile && !this.annotatedImage) {
-                        alert('Indsæt venligst et screenshot (Ctrl+V) før du indsender.');
+                        alert('{{ __('debug-notary::messages.alert_screenshot_needed') }}');
                         return;
                     }
 
@@ -267,16 +271,16 @@
 
                         if (response.ok) {
                             this.isOpen = false;
-                            alert('Report submitted successfully!');
+                            alert('{{ __('debug-notary::messages.alert_submit_success') }}');
                             if (this.screenshotUrl) {
                                 URL.revokeObjectURL(this.screenshotUrl);
                             }
                         } else {
-                            alert('Failed to submit report. Check console for details.');
+                            alert('{{ __('debug-notary::messages.alert_submit_error') }}');
                         }
                     } catch (e) {
                         console.error('Submission failed', e);
-                        alert('An error occurred during submission.');
+                        alert('{{ __('debug-notary::messages.alert_error_occurred') }}');
                     } finally {
                         this.isSubmitting = false;
                     }

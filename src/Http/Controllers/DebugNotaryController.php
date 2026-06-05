@@ -18,68 +18,16 @@ class DebugNotaryController extends Controller
             Gate::authorize($gate);
         }
 
-        $search = $request->input('search');
-        $tag = $request->input('tag');
-        $severity = $request->input('severity');
-        $logType = $request->input('log_type');
-        $status = $request->input('status');
-
-        $bugs = RecordedBug::query()
-            ->with('user')
-            ->when($search, function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('message', 'like', '%'.$search.'%')
-                        ->orWhere('file', 'like', '%'.$search.'%')
-                        ->orWhere('user_note', 'like', '%'.$search.'%');
-                });
-            })
-            ->when($tag, function ($query) use ($tag) {
-                $query->whereJsonContains('tags', $tag);
-            })
-            ->when($severity, function ($query) use ($severity) {
-                $query->where('severity', $severity);
-            })
-            ->when($logType, function ($query) use ($logType) {
-                $query->where('log_type', $logType);
-            })
-            ->when($status, function ($query) use ($status) {
-                $query->where('status', $status);
-            })
-            ->latest('last_seen_at')
-            ->paginate(20);
-
-        // Hent unikke tags til filter
-        $allTags = RecordedBug::whereNotNull('tags')
-            ->get()
-            ->pluck('tags')
-            ->flatten()
-            ->unique()
-            ->filter();
-
-        return view('debug-notary::index', [
-            'bugs' => $bugs,
-            'search' => $search,
-            'tag' => $tag,
-            'severity' => $severity,
-            'logType' => $logType,
-            'status' => $status,
-            'allTags' => $allTags,
-            'severities' => array_keys(RecordedBug::LEVELS),
-            'statuses' => [
-                RecordedBug::STATUS_OPEN,
-                RecordedBug::STATUS_IN_PROGRESS,
-                RecordedBug::STATUS_RESOLVED,
-            ],
-        ]);
+        return view('debug-notary::index');
     }
 
     public function storeNotary(Request $request)
     {
         // Hvis det er en JS fejl logning
         if ($request->input('log_type') === 'javascript') {
-            $message = $request->input('message');
-            $file = $request->input('file', 'browser');
-            $line = $request->input('line', 0);
+            $message = $request->input('message') ?? 'Script error.';
+            $file = $request->input('file') ?? 'browser';
+            $line = $request->input('line') ?? 0;
             $hash = md5($message.$file.$line);
 
             $bug = RecordedBug::firstOrNew(['hash' => $hash]);

@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary\Jobs;
 
+use Dennisbusk\DebugNotary\Mail\BugRecordedMail;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,9 +36,7 @@ class NotifyBugJob implements ShouldQueue
         // Mail
         if ($email = config('debug-notary.notifications.mail_to')) {
             try {
-                Mail::raw($message, function ($m) use ($email) {
-                    $m->to($email)->subject('New Debug Notary Bug');
-                });
+                Mail::to($email)->send(new BugRecordedMail($this->bug));
             } catch (\Exception $e) {
                 // Silent fail
             }

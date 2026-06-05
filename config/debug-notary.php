@@ -20,6 +20,11 @@ return [
     'notary_log' => env('DEBUG_NOTARY_LOG', true),
 
     /*
+     * Skal JavaScript fejl (console errors) fanges automatisk?
+     */
+    'console_log' => env('DEBUG_NOTARY_CONSOLE_LOG', true),
+
+    /*
      * Hvilket layout skal bruges til Debug Notary oversigten?
      * Hvis den efterlades som null, bruges pakkens eget standard layout.
      */

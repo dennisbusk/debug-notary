@@ -3,12 +3,17 @@
 namespace Dennisbusk\DebugNotary;
 
 use Dennisbusk\DebugNotary\Console\TestNotaryCommand;
+use Dennisbusk\DebugNotary\Http\Livewire\BugBulkActions;
+use Dennisbusk\DebugNotary\Http\Livewire\BugModal;
+use Dennisbusk\DebugNotary\Http\Livewire\BugRow;
+use Dennisbusk\DebugNotary\Http\Livewire\BugTable;
 use Dennisbusk\DebugNotary\Http\Middleware\InjectNotaryButton;
 use Dennisbusk\DebugNotary\Listeners\LogMessageListener;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class DebugNotaryServiceProvider extends ServiceProvider
 {
@@ -41,6 +46,10 @@ class DebugNotaryServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../resources/lang' => resource_path('lang/vendor/debug-notary'),
             ], 'debug-notary-lang');
+
+            $this->publishes([
+                __DIR__.'/../resources/views' => resource_path('views/vendor/debug-notary'),
+            ], 'debug-notary-views');
         }
 
         if (config('debug-notary.enabled') || config('debug-notary.notary_log', true)) {
@@ -68,6 +77,11 @@ class DebugNotaryServiceProvider extends ServiceProvider
                 $this->app->make(Kernel::class)
                     ->pushMiddleware(InjectNotaryButton::class);
             }
+
+            Livewire::component('bug-table', BugTable::class);
+            Livewire::component('bug-row', BugRow::class);
+            Livewire::component('bug-modal', BugModal::class);
+            Livewire::component('notary-bulk-actions', BugBulkActions::class);
         }
     }
 }

@@ -3,6 +3,7 @@
 namespace Dennisbusk\DebugNotary;
 
 use Dennisbusk\DebugNotary\Jobs\NotifyBugJob;
+use Dennisbusk\DebugNotary\Mail\BugRecordedMail;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -164,9 +165,7 @@ class DebugNotary
         // Mail
         if ($email = config('debug-notary.notifications.mail_to')) {
             try {
-                Mail::raw($message, function ($m) use ($email) {
-                    $m->to($email)->subject('New Debug Notary Bug');
-                });
+                Mail::to($email)->send(new BugRecordedMail($bug));
             } catch (\Exception $e) {
                 // Silent fail
             }
