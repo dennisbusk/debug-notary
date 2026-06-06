@@ -14,10 +14,16 @@ use Illuminate\Support\Facades\Route;
 class DebugNotary
 {
     /**
+     * Track if routes have been registered manually.
+     */
+    public static bool $routesRegistered = false;
+
+    /**
      * Register the package routes.
      */
     public static function routes(): void
     {
+        static::$routesRegistered = true;
         Route::group([], __DIR__.'/routes.php');
     }
 

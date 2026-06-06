@@ -69,9 +69,15 @@ class DebugNotaryServiceProvider extends ServiceProvider
             $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'debug-notary');
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
-            if (config('debug-notary.register_routes', true) && ! $this->app->routesAreCached()) {
-                $this->loadRoutesFrom(__DIR__.'/routes.php');
-            }
+            $this->app->booted(function () {
+                if (config('debug-notary.register_routes', true)
+                    &&
+                    ! DebugNotary::$routesRegistered
+                    &&
+                    ! $this->app->routesAreCached()) {
+                    $this->loadRoutesFrom(__DIR__.'/routes.php');
+                }
+            });
 
             if (config('debug-notary.enabled')) {
                 $this->app->make(Kernel::class)
