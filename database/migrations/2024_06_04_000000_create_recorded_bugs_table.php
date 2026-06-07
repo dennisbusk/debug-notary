@@ -13,8 +13,8 @@ return new class extends Migration
             $table->string('hash')->unique()->nullable();
             $table->string('log_type')->default('system');
             $table->text('message');
-            $table->string('file');
-            $table->integer('line');
+            $table->string('file')->nullable();
+            $table->integer('line')->nullable();
             $table->string('severity')->default('medium');
             $table->string('status')->default('open');
             $table->integer('count')->default(1);
