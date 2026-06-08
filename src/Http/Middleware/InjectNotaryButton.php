@@ -15,12 +15,19 @@ class InjectNotaryButton
      */
     public function handle(Request $request, Closure $next)
     {
-        $response = $next($request);
-
-        // Knappen skal altid vises hvis notary_log er true
-        if (! config('debug-notary.notary_log', true)) {
-            return $response;
+        // 1. Hurtige tjek baseret på requesten alene
+        if (! config('debug-notary.enabled')
+            || ! config('debug-notary.notary_log', true)
+            || $request->ajax()
+            || $request->isXmlHttpRequest()
+            || $request->wantsJson()
+            || $request->hasHeader('X-Livewire')
+            || str_contains($request->getPathInfo(), '/livewire')
+        ) {
+            return $next($request);
         }
+
+        $response = $next($request);
 
         // Tjek adgang via Gate hvis konfigureret
         if ($gate = config('debug-notary.access_gate')) {
@@ -32,11 +39,6 @@ class InjectNotaryButton
                 // Hvis gate ikke findes eller fejler, viser vi den ikke for en sikkerheds skyld
                 return $response;
             }
-        }
-
-        // Undgå injicering i AJAX, JSON eller ikke-HTML responser
-        if ($request->ajax() || $request->isXmlHttpRequest() || $request->wantsJson()) {
-            return $response;
         }
 
         // Vi tjekker om det er en Response instans og om det er HTML

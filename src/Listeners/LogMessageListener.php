@@ -5,6 +5,7 @@ namespace Dennisbusk\DebugNotary\Listeners;
 use Dennisbusk\DebugNotary\Facades\DebugNotary;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Log\Events\MessageLogged;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Throwable;
 
 class LogMessageListener
@@ -14,6 +15,16 @@ class LogMessageListener
         try {
             if (! config('debug-notary.enabled')) {
                 return;
+            }
+
+            // Ignorer MethodNotAllowedHttpException for Livewire update ruter ved GET requests
+            // Dette sker ofte pga. bots eller prefetchers der rammer Livewire endpoints
+            if (isset($event->context['exception'])
+                && $event->context['exception'] instanceof MethodNotAllowedHttpException) {
+                $path = request()->getPathInfo();
+                if (str_contains($path, '/update') && (str_contains($path, 'livewire') || request()->hasHeader('X-Livewire'))) {
+                    return;
+                }
             }
 
             $level = $event->level;
