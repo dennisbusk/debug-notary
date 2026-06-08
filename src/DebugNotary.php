@@ -23,6 +23,10 @@ class DebugNotary
      */
     public static function routes(): void
     {
+        if (static::$routesRegistered) {
+            return;
+        }
+
         static::$routesRegistered = true;
         Route::group([], __DIR__.'/routes.php');
     }

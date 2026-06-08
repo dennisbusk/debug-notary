@@ -10,8 +10,10 @@ use Dennisbusk\DebugNotary\Http\Livewire\BugTable;
 use Dennisbusk\DebugNotary\Http\Middleware\InjectNotaryButton;
 use Dennisbusk\DebugNotary\Listeners\LogMessageListener;
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Foundation\AliasLoader;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
@@ -27,6 +29,10 @@ class DebugNotaryServiceProvider extends ServiceProvider
         $this->app->singleton('debug-notary', function ($app) {
             return new DebugNotary;
         });
+
+        if (class_exists(AliasLoader::class)) {
+            AliasLoader::getInstance()->alias('DebugNotary', Facades\DebugNotary::class);
+        }
     }
 
     /**
@@ -73,6 +79,8 @@ class DebugNotaryServiceProvider extends ServiceProvider
                 if (config('debug-notary.register_routes', true)
                     &&
                     ! DebugNotary::$routesRegistered
+                    &&
+                    ! Route::has('debug-notary.index')
                     &&
                     ! $this->app->routesAreCached()) {
                     $this->loadRoutesFrom(__DIR__.'/routes.php');
