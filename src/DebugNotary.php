@@ -2,12 +2,13 @@
 
 namespace Dennisbusk\DebugNotary;
 
+use Dennisbusk\DebugNotary\Http\Controllers\DebugNotaryController;
 use Dennisbusk\DebugNotary\Jobs\NotifyBugJob;
 use Dennisbusk\DebugNotary\Mail\BugRecordedMail;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Http as LaravelHttp;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,25 @@ class DebugNotary
 
         static::$routesRegistered = true;
         Route::group([], __DIR__.'/routes.php');
+    }
+
+    /**
+     * Register the reporting routes only.
+     */
+    public static function reportingRoutes(): void
+    {
+        Route::post('laravel-debug-notary/store', [DebugNotaryController::class, 'storeNotary'])->name('debug-notary.store');
+    }
+
+    /**
+     * Register the management routes only.
+     */
+    public static function managementRoutes(): void
+    {
+        Route::get('laravel-debug-notary', [DebugNotaryController::class, 'index'])->name('debug-notary.index');
+        Route::patch('laravel-debug-notary/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
+        Route::delete('laravel-debug-notary/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
+        Route::post('laravel-debug-notary/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
     }
 
     /**
@@ -164,7 +184,7 @@ class DebugNotary
         // Slack
         if ($webhook = config('debug-notary.notifications.slack_webhook')) {
             try {
-                Http::post($webhook, [
+                LaravelHttp::post($webhook, [
                     'text' => $message,
                 ]);
             } catch (\Exception $e) {
