@@ -231,12 +231,26 @@
 
                     this.markerArea.addEventListener('render', (event) => {
                         this.annotatedImage = event.dataUrl;
+                        this.markerArea = null;
+                    });
+
+                    this.markerArea.addEventListener('close', () => {
+                        this.markerArea = null;
                     });
 
                     this.markerArea.show();
                 },
 
                 async submitReport() {
+                    if (this.markerArea) {
+                        try {
+                            this.annotatedImage = await this.markerArea.render();
+                        } catch (e) {
+                            console.error('Marker rendering failed', e);
+                        }
+                        this.markerArea = null;
+                    }
+
                     if (!this.screenshotFile && !this.annotatedImage) {
                         alert('{{ __('debug-notary::messages.alert_screenshot_needed') }}');
                         return;
