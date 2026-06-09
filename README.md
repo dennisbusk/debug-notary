@@ -1,29 +1,41 @@
-### Debug Notary - Laravel Debugging & User Reporting
+# 🐞 Debug Notary
 
-`Debug Notary` is a powerful Laravel package designed to make debugging and user reporting effortless. The package automatically captures your system logs and provides your users (or yourself) with a visual "Notary" button to manually
-report bugs with screenshots and browser data directly from the interface.
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/dennisbusk/debug-notary.svg?style=flat-square)](https://packagist.org/packages/dennisbusk/debug-notary)
+[![Total Downloads](https://img.shields.io/packagist/dt/dennisbusk/debug-notary.svg?style=flat-square)](https://packagist.org/packages/dennisbusk/debug-notary)
+[![License](https://img.shields.io/packagist/l/dennisbusk/debug-notary.svg?style=flat-square)](https://packagist.org/packages/dennisbusk/debug-notary)
+
+`Debug Notary` is a powerful Laravel package designed to make debugging and user reporting effortless. It automatically captures system logs, tracks JavaScript errors, and provides a visual "Notary" button for users to report bugs with
+screenshots, annotations, and browser data directly from your application.
 
 ---
 
 ### 🚀 Features
 
-* **Automatic Log Collection:** Listens to Laravel's log events and stores them in the database.
-* **JavaScript Error Tracking:** Automatically captures frontend errors (`window.onerror` and `window.onunhandledrejection`) and console errors, logging them with full stack traces.
-* **Visual Notary Button:** A discrete button injected into the bottom of your application, allowing users to submit bug reports manually with screenshots, notes, and browser metadata.
-* **Intelligent Dashboard:** Full overview of errors with trend statistics (CSS bars), status management (Open, In Progress, Resolved), and advanced filtering by severity, type, and status.
-* **Notifications:** Get notified via Slack or Email when new unique errors are recorded, with built-in rate limiting and queue support.
-* **Screenshot Management:** Choose between storing screenshots as files on disk or as Base64 strings directly in the database.
-* **Flexible Layouts:** Use the built-in dashboard layout or specify your own to match your application's design.
-* **Data Masking:** Automatically masks sensitive information like passwords, tokens, and API keys for GDPR compliance and security.
-* **User & Tenant Context:** Automatically associates errors with the authenticated user and tenant ID if available.
-* **Markdown Export:** Generate structured reports optimized for LLMs or GitHub issues with one click.
-* **Auto-Cleanup:** Automatically prunes old logs after a configurable amount of days using Laravel's Prunable trait.
+* **Automatic Log Collection:** Listens to Laravel's log events and stores them in your database.
+* **JavaScript Error Tracking:** Automatically captures frontend errors (`window.onerror`, `window.onunhandledrejection`) and console errors with full stack traces.
+* **Visual Notary Button:** A discrete button injected into your application, allowing users to submit bug reports with screenshots (using [marker.js](https://markerjs.com/)), notes, and metadata.
+* **Intelligent Dashboard:** A comprehensive Livewire-powered dashboard with trend statistics, status management (Open, In Progress, Resolved), and advanced filtering.
+* **Multi-Channel Notifications:** Get alerted via Slack or Email when new unique errors occur, featuring built-in rate limiting and queue support.
+* **Screenshot Management:** Support for storing screenshots as files on disk (public disk) or as Base64 strings in the database.
+* **Data Masking:** Automatically redacts sensitive information like passwords, tokens, and API keys for GDPR compliance and security.
+* **User & Tenant Context:** Automatically associates logs with authenticated users and their roles (compatible with Spatie Permissions).
+* **Markdown & LLM Export:** Generate structured reports optimized for GitHub issues or AI analysis with a single click.
+* **Auto-Cleanup:** Automatically prunes old logs using Laravel's `Prunable` trait.
+* **Localization:** Built-in support for English and Danish.
+
+---
+
+### 📋 Requirements
+
+* **PHP:** ^8.2
+* **Laravel:** ^10.0, ^11.0, or ^12.0
+* **Livewire:** ^3.0 or ^4.0
 
 ---
 
 ### 📦 Installation
 
-You can install the package via composer:
+Install the package via composer:
 
 ```bash
 composer require dennisbusk/debug-notary
@@ -31,7 +43,7 @@ composer require dennisbusk/debug-notary
 
 #### 1. Run Migrations
 
-The package requires a table to store the recorded bugs:
+The package requires a table to store recorded bugs:
 
 ```bash
 php artisan migrate
@@ -39,7 +51,7 @@ php artisan migrate
 
 #### 2. Publish Configuration (Optional)
 
-If you want to customize the default settings, you can publish the configuration file:
+To customize the default settings, publish the configuration file:
 
 ```bash
 php artisan vendor:publish --tag="debug-notary-config"
@@ -47,12 +59,19 @@ php artisan vendor:publish --tag="debug-notary-config"
 
 #### 3. Middleware
 
-The package automatically attempts to inject the Notary button via a global middleware. If you have disabled automatic loading or need manual control, you can add `Dennisbusk\DebugNotary\Http\Middleware\InjectNotaryButton` to your `web`
-middleware group in `app/Http/Kernel.php`.
+The package automatically injects the Notary button via a global middleware. If you've disabled automatic loading or need manual control, add the middleware to your `web` group:
 
-#### 4. Test Configuration
+```php
+// app/Http/Kernel.php or bootstrap/app.php (Laravel 11+)
+'web' => [
+    // ...
+    \Dennisbusk\DebugNotary\Http\Middleware\InjectNotaryButton::class,
+],
+```
 
-Verify your Slack and Email notifications are working correctly:
+#### 4. Test Your Setup
+
+Verify that notifications and basic logging are working correctly:
 
 ```bash
 php artisan debug-notary:test
@@ -62,78 +81,76 @@ php artisan debug-notary:test
 
 ### ⚙️ Configuration
 
-After publishing, you will find the configuration in `config/debug-notary.php`. Key settings include:
+The configuration file `config/debug-notary.php` allows you to fine-tune the package:
 
-* `enabled`: Enable or disable the entire package.
-* `debug_level`: The minimum log level to record (e.g., `error`, `critical`, `warning`).
-* `system_log`: Should standard Laravel logs be captured automatically?
-* `notary_log`: Should the manual Notary button be shown?
-* `console_log`: Automatically capture JavaScript console errors?
-* `screenshot_storage`: How to store screenshots (`base64`, `file`, or `both`).
-* `layout`: Custom blade layout for the dashboard (defaults to package layout).
-* `register_routes`: Toggle automatic route registration.
-* `access_gate`: Define which Gate controls access to the dashboard and button.
-* `notifications.enabled`: Toggle notifications on/off.
-* `notifications.slack_webhook`: Your Slack Incoming Webhook URL.
-* `notifications.mail_to`: Destination email address for bug reports.
-* `notifications.queue`: Set to `true` to send notifications via your background queue.
-* `notifications.rate_limit`: Minutes to wait before sending a notification for the same error again.
-* `prune_days`: How many days to keep logs before auto-deleting.
+* `enabled`: Master toggle for the package.
+* `debug_level`: Minimum log level to capture (default: `error`).
+* `system_log`: Capture standard Laravel logs.
+* `notary_log`: Enable/disable the manual reporting button.
+* `console_log`: Automatically capture JS console errors.
+* `access_gate`: Define a Gate to control who sees the button and dashboard.
+* `notifications`: Configure Slack webhooks, Email recipients, and rate limiting.
 * `masking.fields`: List of fields to redact from logs and context.
+
+#### Access Control
+
+To restrict access to the Debug Notary dashboard or button, define a gate in your `AuthServiceProvider`:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+Gate::define('view-debug-notary', function ($user) {
+    return $user->is_admin;
+});
+```
+
+Then, update your `config/debug-notary.php`:
+
+```php
+'access_gate' => 'view-debug-notary',
+```
 
 ---
 
 ### 🛠 Usage
 
-#### Automatic Logging
-
-Once active, no extra steps are required. Standard Laravel logging will be captured automatically:
-
-```php
-use Illuminate\Support\Facades\Log;
-
-Log::error('Something went wrong in the payment flow!');
-```
-
-#### JavaScript Error Tracking
-
-The package automatically listens for JavaScript errors. No configuration is needed if the Notary button is injected. It captures:
-
-- Uncaught Exceptions (`window.onerror`)
-- Unhandled Promise Rejections (`window.onunhandledrejection`)
-
 #### Manual Logging via Facade
 
-You can also use the `DebugNotary` facade directly to store specific notarizations:
+Capture specific events manually in your PHP code:
 
 ```php
 use Dennisbusk\DebugNotary\Facades\DebugNotary;
 
 DebugNotary::warning('User attempted to access a locked resource', [
-    'extra_info' => 'This is additional context'
+    'resource_id' => 123
 ]);
 ```
 
 #### Dashboard
 
-You can access your Debug Notary dashboard at the following route:
-`your-app.test/laravel-debug-notary`
+Access the dashboard at `/laravel-debug-notary`.
 
-From the dashboard, you can:
+The dashboard uses **Tailwind CSS**. If you are using a custom layout, ensure Tailwind is available. The default layout loads Tailwind via CDN for convenience.
 
-* **Trend View:** See CSS-bar graphs of error frequency over the last 7 days.
-* **Status Management:** Track progress by marking errors as Open, In Progress, or Resolved.
-* **Smart Search:** Search through error messages, files, and user notes.
-* **Advanced Filtering:** Filter by Severity, Log Type (System, Notary, JS), and Status.
-* **Markdown Export:** Copy a full error report to your clipboard for use in GitHub or AI tools.
-* **Details:** View screenshots, browser context, and full stack traces.
-* **Clean-up:** Delete errors individually or in bulk.
+#### Localization
+
+To customize the text or add new languages, publish the language files:
+
+```bash
+php artisan vendor:publish --tag="debug-notary-lang"
+```
 
 ---
 
 ### 🖥 Advanced Route Registration
 
-If you want full control over where the routes are placed (e.g., behind specific authentication middleware), you can disable automatic route loading and call the following in your `RouteServiceProvider` or `web.php`:
+By default, routes are registered automatically. To manually control route registration (e.g., to apply specific middleware), disable automatic registration in `config/debug-notary.php`:
+
+```php
+'register_routes' => false,
+```
+
+Then, register them in your `routes/web.php`:
 
 ```php
 use Dennisbusk\DebugNotary\DebugNotary;
@@ -147,14 +164,14 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
 
 ### 📄 License
 
-This package is open-source software licensed under the MIT license. See the `LICENSE` file for more details.
+The MIT License (MIT). Please see [License File](LICENSE) for more information.
 
 ---
 
 ### 🤝 Contributing
 
-Suggestions for improvements or bug reports? Open an issue or submit a pull request on GitHub!
+Suggestions for improvements or bug reports? Open an issue or submit a pull request!
 
 ---
 
-*Created with ❤️ by Dennis Busk*
+*Created with ❤️ by [Dennis Busk](https://github.com/dennisbusk)*
