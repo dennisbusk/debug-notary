@@ -62,7 +62,7 @@ class DebugNotaryController extends Controller
         }
 
         $request->validate([
-            'screenshot' => ['nullable', 'string', 'max:10000000'], // Tillad stor base64, men sæt grænse
+            'screenshot' => ['nullable', 'max:10000000'], // Kan være både string (base64) eller fil
             'note' => ['nullable', 'string', 'max:2000'],
             'url' => ['nullable', 'string', 'max:2000'],
         ]);

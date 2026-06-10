@@ -32,7 +32,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" @click.away="closeModal()">
             <div class="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-yellow-400">
                 <h3 class="text-lg font-bold text-gray-900">{{ __('debug-notary::messages.debug_notary_report') }}</h3>
-                <button @click="closeModal()" class="text-gray-700 hover:text-black text-2xl">&times;</button>
+                <button @click="closeModal()" class="text-gray-700 dark:text-gray-900 hover:text-black text-2xl">&times;</button>
             </div>
 
             <div class="p-6 overflow-y-auto flex-1">
@@ -78,8 +78,9 @@
             </div>
 
             <div class="p-4 border-t dark:border-gray-700 flex justify-end space-x-3 bg-gray-50 dark:bg-gray-900">
-                <button @click="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">{{ __('debug-notary::messages.cancel') }}</button>
-                <button @click="submitReport" :disabled="isSubmitting" class="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-md hover:bg-yellow-600 disabled:opacity-50 flex items-center">
+                <button @click="closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">{{ __('debug-notary::messages.cancel') }}</button>
+                <button @click="submitReport" :disabled="isSubmitting" class="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-yellow-500 rounded-md hover:bg-yellow-600 disabled:opacity-50 flex items-center">
                     <span x-show="isSubmitting" class="mr-2">
                         <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75"
                                                                                                                                                                                                              fill="currentColor"
