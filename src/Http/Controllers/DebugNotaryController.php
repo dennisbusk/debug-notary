@@ -63,8 +63,8 @@ class DebugNotaryController extends Controller
 
         $request->validate([
             'screenshot' => ['nullable', 'max:10000000'], // Kan være både string (base64) eller fil
-            'note' => ['nullable', 'string', 'max:2000'],
-            'url' => ['nullable', 'string', 'max:2000'],
+            'note' => ['nullable', 'string'],
+            'url' => ['nullable', 'string'],
         ]);
 
         if ($request->hasFile('screenshot')) {
@@ -120,7 +120,7 @@ class DebugNotaryController extends Controller
 
         $bug = RecordedBug::create([
             'log_type' => 'notary',
-            'message' => __('debug-notary::messages.manual_log', ['note' => Str::limit($note, 50)]),
+            'message' => __('debug-notary::messages.manual_log', ['note' => $note]),
             'user_note' => $note,
             'tags' => $tags,
             'url' => $url,

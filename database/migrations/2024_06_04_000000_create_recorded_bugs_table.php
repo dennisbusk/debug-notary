@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('hash')->unique()->nullable();
             $table->string('log_type')->default('system');
-            $table->text('message');
+            $table->longText('message');
             $table->string('file')->nullable();
             $table->integer('line')->nullable();
             $table->string('severity')->default('medium');
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->string('screenshot_path')->nullable();
             $table->string('url')->nullable();
             $table->json('browser_data')->nullable();
-            $table->text('user_note')->nullable();
+            $table->longText('user_note')->nullable();
             $table->json('tags')->nullable();
             $table->unsignedBigInteger('user_id')->nullable();
             $table->string('user_role')->nullable();
