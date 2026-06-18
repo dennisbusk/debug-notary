@@ -4,7 +4,10 @@ namespace Dennisbusk\DebugNotary\Models;
 
 /** @noinspection PhpUndefinedClassInspection */
 
+use Dennisbusk\DebugNotary\Enums\BugSeverity;
+use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Facades\DebugNotary;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
 use Illuminate\Support\Facades\Schema;
@@ -14,7 +17,7 @@ class RecordedBug extends Model
     use Prunable;
 
     /**
-     * Niveauer og deres vægt (jo højere, jo vigtigere)
+     * Levels and their weights (higher is more important)
      */
     public const LEVELS
         = [
@@ -35,7 +38,11 @@ class RecordedBug extends Model
 
     public const STATUS_IN_PROGRESS = 'in_progress';
 
+    public const STATUS_PENDING = 'pending';
+
     public const STATUS_RESOLVED = 'resolved';
+
+    public const STATUS_WONT_FIX = 'wont_fix';
 
     protected $fillable
         = [
@@ -56,6 +63,7 @@ class RecordedBug extends Model
             'user_note',
             'tags',
             'user_id',
+            'assigned_to_id',
             'user_role',
             'tenant_id',
             'last_seen_at',
@@ -70,6 +78,8 @@ class RecordedBug extends Model
             'trend_data' => 'json',
             'tags' => 'json',
             'user_id' => 'integer',
+            'assigned_to_id' => 'integer',
+            'status' => BugStatus::class,
         ];
 
     protected $attributes
@@ -77,14 +87,26 @@ class RecordedBug extends Model
             'status' => self::STATUS_OPEN,
         ];
 
+    public function assignedTo()
+    {
+        $userModel = config('auth.providers.users.model');
+
+        return $this->belongsTo($userModel, 'assigned_to_id');
+    }
+
     public function user()
     {
-        // Vi antager at Auth::user() returnerer en model.
-        // I en pakke er det svært at vide præcis hvilken klasse det er,
-        // så vi bruger config eller standard Laravel setup.
+        // We assume Auth::user() returns a model.
+        // In a package, it's hard to know exactly which class it is,
+        // so we use config or standard Laravel setup.
         $userModel = config('auth.providers.users.model');
 
         return $this->belongsTo($userModel);
+    }
+
+    public function messages()
+    {
+        return $this->hasMany(RecordedBugMessage::class, 'recorded_bug_id');
     }
 
     /**
@@ -92,9 +114,39 @@ class RecordedBug extends Model
      */
     public function prunable()
     {
-        $days = config('debug-notary.prune_days', 30);
+        $config = config('debug-notary.prune_days');
 
-        return static::where('last_seen_at', '<=', now()->subDays($days));
+        if (is_numeric($config)) {
+            return static::where('last_seen_at', '<=', now()->subDays($config));
+        }
+
+        if (is_array($config)) {
+            return static::where(function ($query) use ($config) {
+                foreach ($config as $type => $days) {
+                    $query->orWhere(function ($q) use ($type, $days) {
+                        $q->where('log_type', $type)
+                            ->where('last_seen_at', '<=', now()->subDays($days));
+                    });
+                }
+            });
+        }
+
+        return static::where('last_seen_at', '<=', now()->subDays(30));
+    }
+
+    public static function generateHash($message, $file, $line): string
+    {
+        // Normaliser besked ved at fjerne ID'er og UUID'er for bedre gruppering
+        $normalized = preg_replace('/\d+/', '{ID}', $message);
+        $normalized = preg_replace('/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i', '{UUID}', $normalized);
+
+        // Brugerdefinerede mønstre fra konfiguration
+        $customPatterns = config('debug-notary.normalization_patterns', []);
+        foreach ($customPatterns as $pattern => $replacement) {
+            $normalized = preg_replace($pattern, $replacement, $normalized);
+        }
+
+        return md5($normalized.$file.$line);
     }
 
     public static function record(\Throwable $e): self
@@ -103,7 +155,7 @@ class RecordedBug extends Model
             $message = $e->getMessage() ?: 'No message';
             $file = $e->getFile() ?: 'unknown';
             $line = $e->getLine() ?: 0;
-            $hash = md5($message.$file.$line);
+            $hash = static::generateHash($message, $file, $line);
 
             $userContext = DebugNotary::resolveUserContext();
 
@@ -184,18 +236,40 @@ class RecordedBug extends Model
 
     public function updateSeverity(): void
     {
-        $newSeverity = match (true) {
-            $this->count >= 100 => 'critical',
-            $this->count >= 50 => 'high',
-            $this->count >= 10 => 'medium',
-            default => $this->severity ?? 'low',
+        $newSeverityValue = match (true) {
+            $this->count >= 100 => BugSeverity::CRITICAL,
+            $this->count >= 50 => BugSeverity::HIGH,
+            $this->count >= 10 => BugSeverity::MEDIUM,
+            default => $this->severity instanceof BugSeverity ? $this->severity : BugSeverity::LOW,
         };
 
-        $currentWeight = self::LEVELS[$this->severity] ?? 0;
-        $newWeight = self::LEVELS[$newSeverity] ?? 0;
+        // Hvis vi allerede har en severity (f.eks. fra enum cast), så sammenlign vægte
+        $currentWeight = $this->severity instanceof BugSeverity ? $this->severity->weight() : (self::LEVELS[$this->severity] ?? 0);
+        $newWeight = $newSeverityValue->weight();
 
         if ($newWeight > $currentWeight) {
-            $this->severity = $newSeverity;
+            $this->severity = $newSeverityValue; // Mutator ensures storage as string value
         }
+    }
+
+    protected function severity(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                // Return enum when valid, otherwise keep original string (e.g., 'error')
+                try {
+                    return BugSeverity::tryFrom((string) $value) ?? $value;
+                } catch (\Throwable $e) {
+                    return $value;
+                }
+            },
+            set: function ($value) {
+                if ($value instanceof BugSeverity) {
+                    return $value->value;
+                }
+
+                return (string) $value;
+            }
+        );
     }
 }

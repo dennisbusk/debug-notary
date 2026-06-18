@@ -2,7 +2,11 @@
 
 namespace Dennisbusk\DebugNotary\Http\Livewire;
 
+use Dennisbusk\DebugNotary\Enums\BugSeverity;
+use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -31,8 +35,6 @@ class BugTable extends Component
     public bool $selectAll = false;
 
     public bool $allMatchingSelected = false;
-
-    public ?int $openBugId = null;
 
     protected $listeners
         = [
@@ -111,12 +113,6 @@ class BugTable extends Component
         RecordedBug::where('id', $bugId)->update(['status' => $status]);
     }
 
-    public function openBug($id)
-    {
-        $this->openBugId = $id;
-        $this->dispatch('open-bug-modal', bugId: $id);
-    }
-
     public function baseQuery()
     {
         return RecordedBug::query()
@@ -149,24 +145,72 @@ class BugTable extends Component
             ->paginate(20);
     }
 
+    public function getTrendDataProperty()
+    {
+        return Cache::remember('debug-notary-trend-data', 300, function () {
+            $allBugs = RecordedBug::whereNotNull('trend_data')
+                ->where('last_seen_at', '>=', now()->subDays(30))
+                ->select('trend_data')
+                ->get();
+            $aggregatedTrend = [];
+
+            foreach ($allBugs as $bug) {
+                $trend = $bug->trend_data;
+                if (! is_array($trend)) {
+                    continue;
+                }
+                foreach ($trend as $date => $count) {
+                    $aggregatedTrend[$date] = ($aggregatedTrend[$date] ?? 0) + $count;
+                }
+            }
+
+            ksort($aggregatedTrend);
+
+            return array_slice($aggregatedTrend, -30, null, true);
+        });
+    }
+
+    public function getTopFilesProperty()
+    {
+        return RecordedBug::query()
+            ->whereNotNull('file')
+            ->select('file', DB::raw('sum(count) as total'))
+            ->groupBy('file')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
+    }
+
+    public function getTopRoutesProperty()
+    {
+        return RecordedBug::query()
+            ->whereNotNull('url')
+            ->select('url', DB::raw('sum(count) as total'))
+            ->groupBy('url')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
+    }
+
     public function render()
     {
-        $allTags = RecordedBug::whereNotNull('tags')
-            ->get()
-            ->pluck('tags')
-            ->flatten()
-            ->unique()
-            ->filter();
+        $allTags = Cache::remember('debug-notary-all-tags', 300, function () {
+            return RecordedBug::whereNotNull('tags')
+                ->pluck('tags')
+                ->flatten()
+                ->unique()
+                ->filter()
+                ->values();
+        });
 
         return view('debug-notary::livewire.bug-table', [
             'bugs' => $this->bugs,
             'allTags' => $allTags,
-            'severities' => array_keys(RecordedBug::LEVELS),
-            'statuses' => [
-                RecordedBug::STATUS_OPEN,
-                RecordedBug::STATUS_IN_PROGRESS,
-                RecordedBug::STATUS_RESOLVED,
-            ],
+            'severities' => BugSeverity::cases(),
+            'statuses' => BugStatus::cases(),
+            'topFiles' => $this->topFiles,
+            'topRoutes' => $this->topRoutes,
+            'trendData' => $this->trendData,
         ]);
     }
 }

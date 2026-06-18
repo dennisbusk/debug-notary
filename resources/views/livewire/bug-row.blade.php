@@ -16,8 +16,8 @@
         <select wire:change="updateStatus($event.target.value)"
                 class="block w-full pl-2 pr-8 py-1 text-xs border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md bg-white dark:bg-gray-700 dark:text-white transition duration-150 ease-in-out">
             @foreach($statuses as $st)
-                <option value="{{ $st }}" {{ $bug->status === $st ? 'selected' : '' }}>
-                    {{ __('debug-notary::messages.status_' . $st) }}
+                <option value="{{ $st->value }}" {{ $bug->status === $st ? 'selected' : '' }}>
+                    {{ $st->label() }}
                 </option>
             @endforeach
         </select>
@@ -46,13 +46,13 @@
 
     <td class="px-6 py-4 whitespace-nowrap text-sm">
         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
-            {{ match($bug->severity) {
-                'critical', 'emergency', 'alert' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800',
-                'error', 'high' => 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800',
-                'warning', 'medium' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800',
+            {{ match($bug->severity->value ?? $bug->severity) {
+                'critical' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800',
+                'high' => 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800',
+                'medium' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800',
                 default => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
             } }}">
-            {{ __('debug-notary::messages.severity_' . $bug->severity) }}
+            {{ $bug->severity instanceof \Dennisbusk\DebugNotary\Enums\BugSeverity ? $bug->severity->label() : __('debug-notary::messages.severity_' . $bug->severity) }}
         </span>
     </td>
 
@@ -87,12 +87,18 @@
     </td>
 
     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        <button wire:click="openBug"
-                class="inline-flex items-center text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors duration-150">
+        <a href="{{ route('debug-notary.show', $bug->id) }}"
+           class="inline-flex items-center text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors duration-150 relative">
             <span>{{ __('debug-notary::messages.view') }}</span>
+            @if($bug->messages()->where('is_read', false)->where('user_id', '!=', auth()->id())->exists())
+                <span class="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                </span>
+            @endif
             <svg class="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="9 5l7 7-7 7"/>
             </svg>
-        </button>
+        </a>
     </td>
 </tr>

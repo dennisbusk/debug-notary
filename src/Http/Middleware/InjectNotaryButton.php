@@ -15,7 +15,7 @@ class InjectNotaryButton
      */
     public function handle(Request $request, Closure $next)
     {
-        // 1. Hurtige tjek baseret på requesten alene
+        // 1. Quick checks based on the request alone
         if (! config('debug-notary.enabled')
             || ! config('debug-notary.notary_log', true)
             || $request->ajax()
@@ -29,19 +29,24 @@ class InjectNotaryButton
 
         $response = $next($request);
 
-        // Tjek adgang via Gate hvis konfigureret
+        // Check access via Gate if configured
         if ($gate = config('debug-notary.access_gate')) {
             try {
-                if (Gate::denies($gate)) {
+                $userId = auth()->id() ?: 'guest';
+                $hasAccess = cache()->remember("debug-notary-access-{$userId}", 3600, function () use ($gate) {
+                    return Gate::allows($gate);
+                });
+
+                if (! $hasAccess) {
                     return $response;
                 }
             } catch (\Exception $e) {
-                // Hvis gate ikke findes eller fejler, viser vi den ikke for en sikkerheds skyld
+                // If gate doesn't exist or fails, we don't show it just to be safe
                 return $response;
             }
         }
 
-        // Vi tjekker om det er en Response instans og om det er HTML
+        // Check if it's a Response instance and if it's HTML
         if (! method_exists($response, 'getContent') || ! str_contains($response->headers->get('Content-Type', ''), 'text/html')) {
             return $response;
         }
@@ -58,7 +63,7 @@ class InjectNotaryButton
             return $response;
         }
 
-        // Find positionen før </body>
+        // Find position before </body>
         $pos = strripos($content, '</body>');
 
         if ($pos !== false) {

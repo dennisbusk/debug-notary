@@ -35,10 +35,12 @@ class NotifyBugJob implements ShouldQueue
 
         // Mail
         if ($email = config('debug-notary.notifications.mail_to')) {
-            try {
-                Mail::to($email)->send(new BugRecordedMail($this->bug));
-            } catch (\Exception $e) {
-                // Silent fail
+            if (config('debug-notary.notifications.mail_enabled', true)) {
+                try {
+                    Mail::to($email)->send(new BugRecordedMail($this->bug));
+                } catch (\Exception $e) {
+                    // Silent fail
+                }
             }
         }
     }

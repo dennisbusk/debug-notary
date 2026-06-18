@@ -10,6 +10,7 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
+
             <div class="relative min-w-[240px]">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -26,7 +27,7 @@
                     class="block pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-white dark:bg-gray-700 dark:text-white">
                 <option value="">{{ __('debug-notary::messages.all_statuses') }}</option>
                 @foreach($statuses as $s)
-                    <option value="{{ $s }}">{{ __('debug-notary::messages.status_' . $s) }}</option>
+                    <option value="{{ $s->value }}">{{ $s->label() }}</option>
                 @endforeach
             </select>
 
@@ -42,7 +43,7 @@
                     class="block pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-white dark:bg-gray-700 dark:text-white">
                 <option value="">{{ __('debug-notary::messages.all_severities') }}</option>
                 @foreach($severities as $sev)
-                    <option value="{{ $sev }}">{{ __('debug-notary::messages.severity_' . $sev) }}</option>
+                    <option value="{{ $sev->value }}">{{ $sev->label() }}</option>
                 @endforeach
             </select>
 
@@ -60,6 +61,62 @@
                     {{ __('debug-notary::messages.clear_filters') }}
                 </button>
             @endif
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- 30 Day Trend -->
+        <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">{{ __('debug-notary::messages.error_trend_30_days') }}</h3>
+            <div class="flex items-end h-24 gap-1">
+                @php $max = count($trendData) ? max($trendData) : 1; @endphp
+                @foreach($trendData as $date => $count)
+                    <div class="flex-1 bg-indigo-500/20 dark:bg-indigo-500/10 hover:bg-indigo-500 transition-all rounded-t-sm group relative"
+                         style="height: {{ ($count / $max) * 100 }}%">
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            {{ $date }}: {{ $count }}
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="flex justify-between mt-2 text-[10px] text-gray-400 font-medium">
+                <span>{{ count($trendData) ? array_key_first($trendData) : '' }}</span>
+                <span>{{ count($trendData) ? array_key_last($trendData) : '' }}</span>
+            </div>
+        </div>
+
+        <!-- Top Files -->
+        <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">{{ __('debug-notary::messages.top_offenders') }} ({{ __('debug-notary::messages.files') }})</h3>
+            <div class="space-y-3">
+                @foreach($topFiles as $file)
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs text-gray-600 dark:text-gray-300 truncate mr-4" title="{{ $file->file }}">
+                            {{ basename($file->file) }}
+                        </div>
+                        <div class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">
+                            {{ $file->total }}
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <!-- Top Routes -->
+        <div class="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">{{ __('debug-notary::messages.top_offenders') }} ({{ __('debug-notary::messages.routes') }})</h3>
+            <div class="space-y-3">
+                @foreach($topRoutes as $route)
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs text-gray-600 dark:text-gray-300 truncate mr-4" title="{{ $route->url }}">
+                            {{ $route->url ?: '/' }}
+                        </div>
+                        <div class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">
+                            {{ $route->total }}
+                        </div>
+                    </div>
+                @endforeach
+            </div>
         </div>
     </div>
 
@@ -113,5 +170,4 @@
         {{ $bugs->links() }}
     </div>
 
-    <livewire:bug-modal/>
 </div>

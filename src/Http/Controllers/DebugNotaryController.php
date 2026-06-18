@@ -21,14 +21,23 @@ class DebugNotaryController extends Controller
         return view('debug-notary::index');
     }
 
+    public function show($id)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        return view('debug-notary::show', ['id' => $id]);
+    }
+
     public function storeNotary(Request $request)
     {
-        // Hvis det er en JS fejl logning
+        // If it's a JS error logging
         if ($request->input('log_type') === 'javascript') {
             $message = $request->input('message') ?? 'Script error.';
             $file = $request->input('file') ?? 'browser';
             $line = $request->input('line') ?? 0;
-            $hash = md5($message.$file.$line);
+            $hash = RecordedBug::generateHash($message, $file, $line);
 
             $bug = RecordedBug::firstOrNew(['hash' => $hash]);
             $isNew = ! $bug->exists;
@@ -54,7 +63,7 @@ class DebugNotaryController extends Controller
             $bug->save();
 
             if ($isNew) {
-                // Vi bruger Facade-kaldet for at sende notifikationer
+                // We use the Facade call to send notifications
                 DebugNotary::notifyNewBug($bug);
             }
 
@@ -62,7 +71,7 @@ class DebugNotaryController extends Controller
         }
 
         $request->validate([
-            'screenshot' => ['nullable', 'max:10000000'], // Kan være både string (base64) eller fil
+            'screenshot' => ['nullable', 'max:10000000'], // Can be both string (base64) or file
             'note' => ['nullable', 'string'],
             'url' => ['nullable', 'string'],
         ]);
@@ -137,6 +146,21 @@ class DebugNotaryController extends Controller
 
         $bug->updateTrendData();
         $bug->save();
+
+        if ($request->hasFile('attachment')) {
+            $attachment = $request->file('attachment');
+            $attachmentName = 'attachment_'.time().'_'.Str::random(10).'.'.$attachment->getClientOriginalExtension();
+            $attachmentPath = 'debug-notary/attachments/'.$attachmentName;
+
+            Storage::disk('public')->put($attachmentPath, file_get_contents($attachment));
+
+            $bug->messages()->create([
+                'user_id' => $userContext['user_id'],
+                'message' => __('debug-notary::messages.attachment_added', ['name' => $attachment->getClientOriginalName()]),
+                'attachment_path' => $attachmentPath,
+                'attachment_type' => $attachment->getClientMimeType(),
+            ]);
+        }
 
         return response()->json(['success' => true]);
     }

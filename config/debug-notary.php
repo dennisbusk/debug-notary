@@ -4,6 +4,11 @@ return [
     'enabled' => env('DEBUG_NOTARY_ENABLED', true),
 
     /*
+     * Rute præfiks for Debug Notary oversigten og API.
+     */
+    'route_prefix' => env('DEBUG_NOTARY_PREFIX', 'laravel-debug-notary'),
+
+    /*
      * Minimum debug level til at registrere bugs.
      * Muligheder: debug, info, notice, warning, error, critical, alert, emergency
      */
@@ -52,8 +57,13 @@ return [
 
     /*
      * Hvor mange dage skal logs gemmes før de slettes via prunable trait?
+     * Kan konfigureres som et enkelt tal (alle typer) eller et array per type.
      */
-    'prune_days' => env('DEBUG_NOTARY_PRUNE_DAYS', 30),
+    'prune_days' => [
+        'system' => env('DEBUG_NOTARY_PRUNE_SYSTEM', 7),
+        'notary' => env('DEBUG_NOTARY_PRUNE_NOTARY', 90),
+        'javascript' => env('DEBUG_NOTARY_PRUNE_JS', 14),
+    ],
 
     /*
      * Notifikationsindstillinger
@@ -62,6 +72,11 @@ return [
         'enabled' => env('DEBUG_NOTARY_NOTIFICATIONS', false),
         'slack_webhook' => env('DEBUG_NOTARY_SLACK_WEBHOOK'),
         'mail_to' => env('DEBUG_NOTARY_MAIL_TO'),
+
+        /*
+         * Skal der sendes e-mail notifikationer ved nye fejl eller chatbeskeder?
+         */
+        'mail_enabled' => env('DEBUG_NOTARY_MAIL_NOTIFICATIONS', true),
 
         /*
          * Skal notifikationer sendes asynkront via køen (queue)?
@@ -73,6 +88,27 @@ return [
          * Sæt til 0 for at sende hver gang.
          */
         'rate_limit' => env('DEBUG_NOTARY_NOTIFICATIONS_RATE_LIMIT', 60),
+    ],
+
+    /*
+     * Impersonate indstillinger (Log ind som bruger)
+     */
+    'impersonate' => [
+        'enabled' => env('DEBUG_NOTARY_IMPERSONATE_ENABLED', true),
+
+        /*
+         * Route eller URL præfiks til impersonation.
+         * Hvis du bruger lab404/laravel-impersonate er det typisk '/impersonate/take/'
+         */
+        'prefix' => env('DEBUG_NOTARY_IMPERSONATE_PREFIX', '/impersonate/take/'),
+    ],
+
+    /*
+     * Brugerdefinerede regex mønstre til at normalisere fejlbeskeder.
+     * Dette hjælper med at gruppere fejl der indeholder dynamiske data.
+     */
+    'normalization_patterns' => [
+        // '/mønster/' => '{ERSTATNING}',
     ],
 
     /*

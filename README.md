@@ -1,5 +1,9 @@
 # 🐞 Debug Notary
 
+![Debug Notary Demo](https://raw.githubusercontent.com/dennisbusk/debug-notary/main/art/demo.gif)
+
+> **Point-and-click bug reporting:** See how users can annotate screenshots and submit bugs directly from your application.
+
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/dennisbusk/debug-notary.svg?style=flat-square)](https://packagist.org/packages/dennisbusk/debug-notary)
 [![Total Downloads](https://img.shields.io/packagist/dt/dennisbusk/debug-notary.svg?style=flat-square)](https://packagist.org/packages/dennisbusk/debug-notary)
 [![License](https://img.shields.io/packagist/l/dennisbusk/debug-notary.svg?style=flat-square)](https://packagist.org/packages/dennisbusk/debug-notary)
@@ -13,15 +17,54 @@ screenshots, annotations, and browser data directly from your application.
 
 * **Automatic Log Collection:** Listens to Laravel's log events and stores them in your database.
 * **JavaScript Error Tracking:** Automatically captures frontend errors (`window.onerror`, `window.onunhandledrejection`) and console errors with full stack traces.
-* **Visual Notary Button:** A discrete button injected into your application, allowing users to submit bug reports with screenshots (using [marker.js](https://markerjs.com/)), notes, and metadata.
-* **Intelligent Dashboard:** A comprehensive Livewire-powered dashboard with trend statistics, status management (Open, In Progress, Resolved), and advanced filtering.
+* **Smart De-duplication:** Automatically groups similar errors by normalizing messages (redacting IDs, UUIDs, etc.) before hashing.
+* **Visual Notary Button:** A discrete button injected into your application, allowing users to submit bug reports with screenshots (using [marker.js](https://markerjs.com/)), notes, and attachments.
+* **Intelligent Dashboard:** A comprehensive Livewire-powered dashboard with dark mode support, trend statistics, status management (Open, In Progress, Resolved), and advanced filtering.
+* **GDPR Ready:** Built-in "Pixelate" tool for screenshots to blur sensitive data, plus advanced data masking for context logs.
 * **Multi-Channel Notifications:** Get alerted via Slack or Email when new unique errors occur, featuring built-in rate limiting and queue support.
-* **Screenshot Management:** Support for storing screenshots as files on disk (public disk) or as Base64 strings in the database.
-* **Data Masking:** Automatically redacts sensitive information like passwords, tokens, and API keys for GDPR compliance and security.
+* **Screenshot & File Management:** Support for storing screenshots and attachments as files on disk or as Base64 strings.
 * **User & Tenant Context:** Automatically associates logs with authenticated users and their roles (compatible with Spatie Permissions).
 * **Markdown & LLM Export:** Generate structured reports optimized for GitHub issues or AI analysis with a single click.
-* **Auto-Cleanup:** Automatically prunes old logs using Laravel's `Prunable` trait.
+* **Auto-Cleanup:** Automatically prunes old logs using Laravel's `Prunable` trait, with configurable retention periods per log type.
 * **Localization:** Built-in support for English and Danish.
+
+---
+
+### 📖 Recipes & Best Practices
+
+#### Log Cart Contents during Error
+
+When an error occurs in your checkout flow, it's invaluable to see what was in the user's cart.
+
+```php
+use Dennisbusk\DebugNotary\Facades\DebugNotary;
+
+try {
+    // Some logic that might fail
+} catch (\Exception $e) {
+    DebugNotary::error($e->getMessage(), [
+        'cart' => $cart->toArray(),
+        'checkout_step' => 'payment',
+        'coupon_code' => $session->get('coupon')
+    ]);
+    throw $e;
+}
+```
+
+#### Attach Debug Logs manually
+
+If you have a log file or a JSON export of the current state, users can attach it directly via the Notary button in the frontend.
+
+#### Capture Auth State
+
+Capture the current user's permissions to see if a bug is related to access rights.
+
+```php
+DebugNotary::info('User accessed premium feature', [
+    'permissions' => auth()->user()->getAllPermissions()->pluck('name'),
+    'active_plan' => $user->plan_id
+]);
+```
 
 ---
 

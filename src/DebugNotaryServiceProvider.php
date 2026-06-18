@@ -4,7 +4,7 @@ namespace Dennisbusk\DebugNotary;
 
 use Dennisbusk\DebugNotary\Console\TestNotaryCommand;
 use Dennisbusk\DebugNotary\Http\Livewire\BugBulkActions;
-use Dennisbusk\DebugNotary\Http\Livewire\BugModal;
+use Dennisbusk\DebugNotary\Http\Livewire\BugDetail;
 use Dennisbusk\DebugNotary\Http\Livewire\BugRow;
 use Dennisbusk\DebugNotary\Http\Livewire\BugTable;
 use Dennisbusk\DebugNotary\Http\Middleware\InjectNotaryButton;
@@ -94,7 +94,7 @@ class DebugNotaryServiceProvider extends ServiceProvider
 
             Livewire::component('bug-table', BugTable::class);
             Livewire::component('bug-row', BugRow::class);
-            Livewire::component('bug-modal', BugModal::class);
+            Livewire::component('bug-detail', BugDetail::class);
             Livewire::component('notary-bulk-actions', BugBulkActions::class);
         }
     }

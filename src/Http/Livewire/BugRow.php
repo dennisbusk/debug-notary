@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary\Http\Livewire;
 
+use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Livewire\Component;
 
@@ -25,19 +26,10 @@ class BugRow extends Component
         $this->dispatch('statusUpdated');
     }
 
-    public function openBug()
-    {
-        $this->dispatch('open-bug-modal', bugId: $this->bug->id);
-    }
-
     public function render()
     {
         return view('debug-notary::livewire.bug-row', [
-            'statuses' => [
-                RecordedBug::STATUS_OPEN,
-                RecordedBug::STATUS_IN_PROGRESS,
-                RecordedBug::STATUS_RESOLVED,
-            ],
+            'statuses' => BugStatus::cases(),
         ]);
     }
 }

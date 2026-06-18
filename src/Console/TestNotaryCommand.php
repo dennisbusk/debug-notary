@@ -23,7 +23,7 @@ class TestNotaryCommand extends Command
 
         $this->comment('Recording a dummy error...');
 
-        // Vi logger en manuel fejl med en unik besked så vi kan se den i dashboardet
+        // We log a manual error with a unique message so we can see it in the dashboard
         $testMessage = 'Debug Notary Test Error - '.now()->toDateTimeString();
 
         DebugNotary::error($testMessage, [
@@ -51,6 +51,11 @@ class TestNotaryCommand extends Command
         }
 
         $this->info('🏁 Test completed! Please check your dashboard to confirm.');
+
+        if ($this->confirm('Do you want to print a JS test script for the browser console?', true)) {
+            $this->info('Run this in your browser console:');
+            $this->line("console.error('Debug Notary JS Test Error');");
+        }
 
         return 0;
     }

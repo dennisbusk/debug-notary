@@ -6,9 +6,11 @@ use Dennisbusk\DebugNotary\Http\Controllers\DebugNotaryController;
 use Dennisbusk\DebugNotary\Jobs\NotifyBugJob;
 use Dennisbusk\DebugNotary\Mail\BugRecordedMail;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
+use Dennisbusk\DebugNotary\Models\RecordedBugMessage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http as LaravelHttp;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +20,19 @@ class DebugNotary
      * Track if routes have been registered manually.
      */
     public static bool $routesRegistered = false;
+
+    /**
+     * Custom context resolver.
+     */
+    public static $userContextResolver = null;
+
+    /**
+     * Set a custom user context resolver.
+     */
+    public static function resolveUserContextUsing(callable $callback): void
+    {
+        static::$userContextResolver = $callback;
+    }
 
     /**
      * Register the package routes.
@@ -37,7 +52,8 @@ class DebugNotary
      */
     public static function reportingRoutes(): void
     {
-        Route::post('laravel-debug-notary/store', [DebugNotaryController::class, 'storeNotary'])->name('debug-notary.store');
+        $prefix = config('debug-notary.route_prefix', 'laravel-debug-notary');
+        Route::post($prefix.'/store', [DebugNotaryController::class, 'storeNotary'])->name('debug-notary.store');
     }
 
     /**
@@ -45,10 +61,29 @@ class DebugNotary
      */
     public static function managementRoutes(): void
     {
-        Route::get('laravel-debug-notary', [DebugNotaryController::class, 'index'])->name('debug-notary.index');
-        Route::patch('laravel-debug-notary/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
-        Route::delete('laravel-debug-notary/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
-        Route::post('laravel-debug-notary/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
+        $prefix = config('debug-notary.route_prefix', 'laravel-debug-notary');
+        Route::get($prefix, [DebugNotaryController::class, 'index'])->name('debug-notary.index');
+        Route::get($prefix.'/{id}', [DebugNotaryController::class, 'show'])->name('debug-notary.show');
+        Route::patch($prefix.'/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
+        Route::delete($prefix.'/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
+        Route::post($prefix.'/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
+    }
+
+    /**
+     * Get the unread message count for the current user.
+     */
+    public static function getUnreadCountForUser(): int
+    {
+        if (! auth()->check()) {
+            return 0;
+        }
+
+        return RecordedBugMessage::whereHas('bug', function ($q) {
+            $q->where('user_id', auth()->id());
+        })
+            ->where('user_id', '!=', auth()->id())
+            ->where('is_read', false)
+            ->count();
     }
 
     /**
@@ -88,6 +123,10 @@ class DebugNotary
      */
     public function resolveUserContext(): array
     {
+        if (static::$userContextResolver) {
+            return call_user_func(static::$userContextResolver);
+        }
+
         $context = [
             'user_id' => Auth::id(),
             'user_role' => null,
@@ -115,12 +154,19 @@ class DebugNotary
                 return;
             }
 
+            // Check log level
+            $minLevel = config('debug-notary.debug_level', 'error');
+            $levels = RecordedBug::LEVELS;
+            if (($levels[$severity] ?? 0) < ($levels[$minLevel] ?? 0)) {
+                return;
+            }
+
             $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
             $caller = $backtrace[2] ?? ($backtrace[1] ?? null);
 
             $file = $caller['file'] ?? 'unknown';
             $line = $caller['line'] ?? 0;
-            $hash = md5($message.$file.$line);
+            $hash = RecordedBug::generateHash($message, $file, $line);
 
             $bug = RecordedBug::firstOrNew(['hash' => $hash]);
             $isNew = ! $bug->exists;
@@ -150,7 +196,10 @@ class DebugNotary
                 $this->notifyNewBug($bug);
             }
         } catch (\Throwable $e) {
-            // Silently fail to avoid breaking the application
+            // Log the error to default Laravel log to help debugging the package itself
+            Log::error('DebugNotary internal error: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
         }
     }
 

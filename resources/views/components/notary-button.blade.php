@@ -1,3 +1,221 @@
+<!-- Script dependencies -->
+<script src="https://unpkg.com/markerjs2"></script>
+<script>
+    function notaryCollector() {
+        return {
+            isOpen: false,
+            isSubmitting: false,
+            screenshotUrl: null,
+            screenshotFile: null,
+            annotatedImage: null,
+            attachmentFile: null,
+            attachmentName: '',
+            note: '',
+            tags: '',
+            metadata: {
+                url: '',
+                userAgent: '',
+                screen: '',
+            },
+
+            init() {
+                document.addEventListener('paste', (event) => {
+                    if (!this.isOpen) return;
+
+                    const items = event.clipboardData?.items;
+                    if (!items) return;
+
+                    for (const item of items) {
+                        if (item.type.startsWith('image/')) {
+                            const file = item.getAsFile();
+                            if (this.screenshotUrl) {
+                                URL.revokeObjectURL(this.screenshotUrl);
+                            }
+                            this.screenshotFile = file;
+                            this.screenshotUrl = URL.createObjectURL(file);
+                            this.annotatedImage = null;
+                        }
+                    }
+                });
+
+                @if(config('debug-notary.console_log', true))
+                // JS Error tracking
+                window.addEventListener('error', (event) => {
+                    this.logJsError(event.message, event.filename, event.lineno, event.colno, event.error);
+                });
+
+                window.addEventListener('unhandledrejection', (event) => {
+                    let message = 'Unhandled Rejection';
+                    if (event.reason) {
+                        message += ': ' + (event.reason.message || event.reason);
+                    }
+                    this.logJsError(message, window.location.href, 0, 0, event.reason);
+                });
+                @endif
+            },
+
+            async logJsError(message, file, line, col, error) {
+                // Undgå at logge fejl fra selve Notary (hvis muligt)
+                if (file && (file.includes('markerjs2') || file.includes('alpinejs'))) return;
+                if (message && message.includes('markerjs2')) return;
+
+                const data = {
+                    message: message.startsWith('Unhandled Rejection')
+                        ? message.replace('Unhandled Rejection', '{{ __('debug-notary::messages.unhandled_rejection') }}')
+                        : message,
+                    file: file,
+                    line: line,
+                    log_type: 'javascript',
+                    browser_data: {
+                        url: window.location.href,
+                        userAgent: navigator.userAgent,
+                        column: col,
+                        stack: error && error.stack ? error.stack : null
+                    }
+                };
+
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    fetch('{{ route('debug-notary.store') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                } catch (e) {
+                    // Silent fail
+                }
+            },
+
+            openModal() {
+                this.isOpen = true;
+                this.note = '';
+                this.tags = '';
+                this.screenshotUrl = null;
+                this.screenshotFile = null;
+                this.annotatedImage = null;
+                this.markerArea = null;
+
+                this.metadata.url = window.location.href;
+                this.metadata.userAgent = navigator.userAgent;
+                this.metadata.screen = window.innerWidth + 'x' + window.innerHeight;
+            },
+
+            closeModal() {
+                this.isOpen = false;
+                if (this.markerArea) {
+                    this.markerArea.close();
+                    this.markerArea = null;
+                }
+            },
+
+            annotate() {
+                if (!this.screenshotUrl) return;
+
+                if (typeof markerjs2 === 'undefined') {
+                    alert('{{ __('debug-notary::messages.alert_markerjs_not_loaded') }}');
+                    return;
+                }
+
+                const imageElement = this.$refs.screenshotPreview;
+                this.markerArea = new markerjs2.MarkerArea(imageElement);
+
+                // Ensure the markerjs UI is on top of the modal (modal is z-10000)
+                this.markerArea.uiStyleSettings.zIndex = 20000;
+
+                // Set targetRoot to the modal container to fix positioning in centered modals
+                this.markerArea.targetRoot = imageElement.parentElement;
+
+                this.markerArea.availableMarkerTypes = [
+                    'FreehandMarker',
+                    'ArrowMarker',
+                    'RectMarker',
+                    'EllipseMarker',
+                    'TextMarker',
+                    'HighlightMarker',
+                    'PixelateMarker'
+                ];
+
+                this.markerArea.addEventListener('render', (event) => {
+                    this.annotatedImage = event.dataUrl;
+                    this.markerArea = null;
+                });
+
+                this.markerArea.addEventListener('close', () => {
+                    this.markerArea = null;
+                });
+
+                this.markerArea.show();
+            },
+
+            async submitReport() {
+                if (this.markerArea) {
+                    try {
+                        this.annotatedImage = await this.markerArea.render();
+                    } catch (e) {
+                        console.error('Marker rendering failed', e);
+                    }
+                    this.markerArea = null;
+                }
+
+                if (!this.screenshotFile && !this.annotatedImage) {
+                    alert('{{ __('debug-notary::messages.alert_screenshot_needed') }}');
+                    return;
+                }
+
+                this.isSubmitting = true;
+
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')
+                        ? document.querySelector('meta[name="csrf-token"]').content
+                        : '';
+
+                    const formData = new FormData();
+                    formData.append('note', this.note);
+                    formData.append('tags', this.tags);
+                    formData.append('url', this.metadata.url);
+                    formData.append('browser_data', JSON.stringify(this.metadata));
+
+                    if (this.annotatedImage) {
+                        formData.append('screenshot', this.annotatedImage);
+                    } else if (this.screenshotFile) {
+                        formData.append('screenshot', this.screenshotFile);
+                    }
+
+                    if (this.attachmentFile) {
+                        formData.append('attachment', this.attachmentFile);
+                    }
+
+                    const response = await fetch('{{ route('debug-notary.store') }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        this.isOpen = false;
+                        alert('{{ __('debug-notary::messages.alert_submit_success') }}');
+                        if (this.screenshotUrl) {
+                            URL.revokeObjectURL(this.screenshotUrl);
+                        }
+                    } else {
+                        alert('{{ __('debug-notary::messages.alert_submit_error') }}');
+                    }
+                } catch (e) {
+                    console.error('Submission failed', e);
+                    alert('{{ __('debug-notary::messages.alert_error_occurred') }}');
+                } finally {
+                    this.isSubmitting = false;
+                }
+            }
+        };
+    }
+</script>
 <div x-data="notaryCollector()" class="fixed bottom-6 right-6 z-[9999]" style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">
     <style>
         [x-cloak] {
@@ -59,6 +277,15 @@
                     </div>
 
                     <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('debug-notary::messages.attachment') }} (JSON/LOG/TXT)</label>
+                        <input type="file" @change="attachmentFile = $event.target.files[0]; attachmentName = $event.target.files[0].name"
+                               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100">
+                        <template x-if="attachmentFile">
+                            <p class="mt-1 text-xs text-gray-500">Valgt: <span x-text="attachmentName"></span></p>
+                        </template>
+                    </div>
+
+                    <div class="mb-4">
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('debug-notary::messages.screenshot_preview') }}</p>
                         <div class="relative border rounded shadow-sm bg-gray-100 dark:bg-gray-900 mb-2">
                             <img x-ref="screenshotPreview" :src="annotatedImage || screenshotUrl" class="max-w-full h-auto block mx-auto">
@@ -92,215 +319,4 @@
         </div>
     </div>
 
-    <!-- Script dependencies -->
-    <script src="https://unpkg.com/markerjs2"></script>
-    <script>
-        function notaryCollector() {
-            return {
-                isOpen: false,
-                isSubmitting: false,
-                screenshotUrl: null,
-                screenshotFile: null,
-                annotatedImage: null,
-                note: '',
-                tags: '',
-                metadata: {
-                    url: '',
-                    userAgent: '',
-                    screen: '',
-                },
-
-                init() {
-                    document.addEventListener('paste', (event) => {
-                        if (!this.isOpen) return;
-
-                        const items = event.clipboardData?.items;
-                        if (!items) return;
-
-                        for (const item of items) {
-                            if (item.type.startsWith('image/')) {
-                                const file = item.getAsFile();
-                                if (this.screenshotUrl) {
-                                    URL.revokeObjectURL(this.screenshotUrl);
-                                }
-                                this.screenshotFile = file;
-                                this.screenshotUrl = URL.createObjectURL(file);
-                                this.annotatedImage = null;
-                            }
-                        }
-                    });
-
-                    @if(config('debug-notary.console_log', true))
-                    // JS Error tracking
-                    window.addEventListener('error', (event) => {
-                        this.logJsError(event.message, event.filename, event.lineno, event.colno, event.error);
-                    });
-
-                    window.addEventListener('unhandledrejection', (event) => {
-                        let message = 'Unhandled Rejection';
-                        if (event.reason) {
-                            message += ': ' + (event.reason.message || event.reason);
-                        }
-                        this.logJsError(message, window.location.href, 0, 0, event.reason);
-                    });
-                    @endif
-                },
-
-                async logJsError(message, file, line, col, error) {
-                    // Undgå at logge fejl fra selve Notary (hvis muligt)
-                    if (file && (file.includes('markerjs2') || file.includes('alpinejs'))) return;
-                    if (message && message.includes('markerjs2')) return;
-
-                    const data = {
-                        message: message.startsWith('Unhandled Rejection')
-                            ? message.replace('Unhandled Rejection', '{{ __('debug-notary::messages.unhandled_rejection') }}')
-                            : message,
-                        file: file,
-                        line: line,
-                        log_type: 'javascript',
-                        browser_data: {
-                            url: window.location.href,
-                            userAgent: navigator.userAgent,
-                            column: col,
-                            stack: error && error.stack ? error.stack : null
-                        }
-                    };
-
-                    try {
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-                        fetch('{{ route('debug-notary.store') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify(data)
-                        });
-                    } catch (e) {
-                        // Silent fail
-                    }
-                },
-
-                openModal() {
-                    this.isOpen = true;
-                    this.note = '';
-                    this.tags = '';
-                    this.screenshotUrl = null;
-                    this.screenshotFile = null;
-                    this.annotatedImage = null;
-                    this.markerArea = null;
-
-                    this.metadata.url = window.location.href;
-                    this.metadata.userAgent = navigator.userAgent;
-                    this.metadata.screen = window.innerWidth + 'x' + window.innerHeight;
-                },
-
-                closeModal() {
-                    this.isOpen = false;
-                    if (this.markerArea) {
-                        this.markerArea.close();
-                        this.markerArea = null;
-                    }
-                },
-
-                annotate() {
-                    if (!this.screenshotUrl) return;
-
-                    if (typeof markerjs2 === 'undefined') {
-                        alert('{{ __('debug-notary::messages.alert_markerjs_not_loaded') }}');
-                        return;
-                    }
-
-                    const imageElement = this.$refs.screenshotPreview;
-                    this.markerArea = new markerjs2.MarkerArea(imageElement);
-
-                    // Ensure the markerjs UI is on top of the modal (modal is z-10000)
-                    this.markerArea.uiStyleSettings.zIndex = 20000;
-
-                    // Set targetRoot to the modal container to fix positioning in centered modals
-                    this.markerArea.targetRoot = imageElement.parentElement;
-
-                    this.markerArea.availableMarkerTypes = [
-                        'FreehandMarker',
-                        'ArrowMarker',
-                        'RectMarker',
-                        'EllipseMarker',
-                        'TextMarker',
-                        'HighlightMarker'
-                    ];
-
-                    this.markerArea.addEventListener('render', (event) => {
-                        this.annotatedImage = event.dataUrl;
-                        this.markerArea = null;
-                    });
-
-                    this.markerArea.addEventListener('close', () => {
-                        this.markerArea = null;
-                    });
-
-                    this.markerArea.show();
-                },
-
-                async submitReport() {
-                    if (this.markerArea) {
-                        try {
-                            this.annotatedImage = await this.markerArea.render();
-                        } catch (e) {
-                            console.error('Marker rendering failed', e);
-                        }
-                        this.markerArea = null;
-                    }
-
-                    if (!this.screenshotFile && !this.annotatedImage) {
-                        alert('{{ __('debug-notary::messages.alert_screenshot_needed') }}');
-                        return;
-                    }
-
-                    this.isSubmitting = true;
-
-                    try {
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]')
-                            ? document.querySelector('meta[name="csrf-token"]').content
-                            : '';
-
-                        const formData = new FormData();
-                        formData.append('note', this.note);
-                        formData.append('tags', this.tags);
-                        formData.append('url', this.metadata.url);
-                        formData.append('browser_data', JSON.stringify(this.metadata));
-
-                        if (this.annotatedImage) {
-                            formData.append('screenshot', this.annotatedImage);
-                        } else if (this.screenshotFile) {
-                            formData.append('screenshot', this.screenshotFile);
-                        }
-
-                        const response = await fetch('{{ route('debug-notary.store') }}', {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': csrfToken
-                            },
-                            body: formData
-                        });
-
-                        if (response.ok) {
-                            this.isOpen = false;
-                            alert('{{ __('debug-notary::messages.alert_submit_success') }}');
-                            if (this.screenshotUrl) {
-                                URL.revokeObjectURL(this.screenshotUrl);
-                            }
-                        } else {
-                            alert('{{ __('debug-notary::messages.alert_submit_error') }}');
-                        }
-                    } catch (e) {
-                        console.error('Submission failed', e);
-                        alert('{{ __('debug-notary::messages.alert_error_occurred') }}');
-                    } finally {
-                        this.isSubmitting = false;
-                    }
-                }
-            };
-        }
-    </script>
 </div>
