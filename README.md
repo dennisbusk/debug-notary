@@ -13,12 +13,27 @@ screenshots, annotations, and browser data directly from your application.
 
 ---
 
+### ❓ Why Debug Notary?
+
+While tools like **Laravel Pulse** focus on *Application Performance Monitoring (APM)* (server health, slow queries, CPU usage), **Debug Notary** is a *Bug Reporting & Error Tracking* tool. It bridges the gap between the user's visual
+experience and the developer's technical requirements.
+
+ Feature                 | Debug Notary                | Laravel Pulse       |
+ -------------------------|-----------------------------|---------------------|
+ **User Interaction**    | ✅ Point-and-click reporting | ❌ No manual reports |
+ **Visual Context**      | ✅ Annotated Screenshots     | ❌ No visuals        |
+ **Frontend Monitoring** | ✅ JS Errors & Console Logs  | ❌ No                |
+ **AI Integration**      | ✅ LLM-optimized exports     | ❌ No                |
+ **System Metrics**      | ❌ (CPU/RAM/SQL)             | ✅ Yes               |
+
+---
+
 ### 🚀 Features
 
 * **Automatic Log Collection:** Listens to Laravel's log events and stores them in your database.
 * **JavaScript Error Tracking:** Automatically captures frontend errors (`window.onerror`, `window.onunhandledrejection`) and console errors with full stack traces.
 * **Smart De-duplication:** Automatically groups similar errors by normalizing messages (redacting IDs, UUIDs, etc.) before hashing.
-* **Visual Notary Button:** A discrete button injected into your application, allowing users to submit bug reports with screenshots (using [marker.js](https://markerjs.com/)), notes, and attachments.
+* **Visual Notary Button:** A discrete button injected into your application, allowing users to submit bug reports with screenshots (using [marker.js](https://marker.js.com/)), notes, and attachments.
 * **Intelligent Dashboard:** A comprehensive Livewire-powered dashboard with dark mode support, trend statistics, status management (Open, In Progress, Resolved), and advanced filtering.
 * **GDPR Ready:** Built-in "Pixelate" tool for screenshots to blur sensitive data, plus advanced data masking for context logs.
 * **Multi-Channel Notifications:** Get alerted via Slack or Email when new unique errors occur, featuring built-in rate limiting and queue support.
@@ -202,6 +217,16 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
     DebugNotary::routes();
 });
 ```
+
+---
+
+### 🔒 Security & GDPR
+
+Debug Notary is built with data protection in mind. For a full overview, please see our [SECURITY.md](SECURITY.md) file.
+
+* **Pixelate/Blur Tool:** Users can manually blur sensitive information on screenshots before submitting.
+* **Data Masking:** Sensitive fields (passwords, tokens, etc.) are automatically redacted.
+* **Auto-Pruning:** Configurable retention periods ensure you don't keep data longer than necessary.
 
 ---
 
