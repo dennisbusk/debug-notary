@@ -128,6 +128,13 @@
 
     <livewire:notary-bulk-actions/>
 
+    @php
+        $visibleColumnsCount = 2; // Checkbox + Action
+        foreach($columns as $visible) {
+            if($visible) $visibleColumnsCount++;
+        }
+    @endphp
+
     <div class="overflow-x-auto bg-white dark:bg-gray-800 shadow-xl rounded-xl border border-gray-200 dark:border-gray-700">
         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead class="bg-gray-50 dark:bg-gray-900/50">
@@ -138,17 +145,39 @@
                            wire:click="toggleSelectAllPage"
                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
                 </th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.type') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.status') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.trend') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.last') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.severity') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.count') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.message') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.tag') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.file_line') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.user') }}</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.role') }}</th>
+                @if($columns['type'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.type') }}</th>
+                @endif
+                @if($columns['status'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.status') }}</th>
+                @endif
+                @if($columns['trend'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.trend') }}</th>
+                @endif
+                @if($columns['last_seen'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.last') }}</th>
+                @endif
+                @if($columns['severity'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.severity') }}</th>
+                @endif
+                @if($columns['count'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.count') }}</th>
+                @endif
+                @if($columns['message'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.message') }}</th>
+                @endif
+                @if($columns['tags'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.tag') }}</th>
+                @endif
+                @if($columns['file_line'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.file_line') }}</th>
+                @endif
+                @if($columns['user'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.user') }}</th>
+                @endif
+                @if($columns['role'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.role') }}</th>
+                @endif
                 <th class="px-6 py-4"></th>
             </tr>
             </thead>
@@ -157,7 +186,7 @@
                 <livewire:bug-row :bug="$bug" :selected="in_array($bug->id, $selected)" :key="'bug-row-'.$bug->id"/>
             @empty
                 <tr>
-                    <td colspan="13" class="p-6 text-center text-gray-500">
+                    <td colspan="{{ $visibleColumnsCount }}" class="p-6 text-center text-gray-500">
                         {{ __('debug-notary::messages.no_bugs_found') }}
                     </td>
                 </tr>

@@ -211,6 +211,7 @@ class BugTable extends Component
             'topFiles' => $this->topFiles,
             'topRoutes' => $this->topRoutes,
             'trendData' => $this->trendData,
+            'columns' => config('debug-notary.list_view.columns', []),
         ]);
     }
 }

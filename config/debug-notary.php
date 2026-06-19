@@ -112,6 +112,25 @@ return [
     ],
 
     /*
+     * Indstillinger for liste visningen af bugs.
+     */
+    'list_view' => [
+        'columns' => [
+            'type' => true,
+            'status' => true,
+            'trend' => true,
+            'last_seen' => true,
+            'severity' => true,
+            'count' => true,
+            'message' => true,
+            'tags' => true,
+            'file_line' => true,
+            'user' => true,
+            'role' => true,
+        ],
+    ],
+
+    /*
      * Data Masking (Sikkerhed & GDPR)
      * Her kan du definere felter der skal maskeres i context/browser_data.
      */

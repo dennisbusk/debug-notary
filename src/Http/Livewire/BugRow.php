@@ -30,6 +30,7 @@ class BugRow extends Component
     {
         return view('debug-notary::livewire.bug-row', [
             'statuses' => BugStatus::cases(),
+            'columns' => config('debug-notary.list_view.columns', []),
         ]);
     }
 }
