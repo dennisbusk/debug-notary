@@ -33,7 +33,20 @@
                 </a>
             @endif
 
-            <button x-on:click="copyToClipboard(@js($bug->message))"
+            @php
+                $severityLabel = $bug->severity instanceof \Dennisbusk\DebugNotary\Enums\BugSeverity ? $bug->severity->label() : $bug->severity;
+                $copyText = "### ERROR REPORT ###\n";
+                $copyText .= "Message: {$bug->message}\n";
+                $copyText .= "Location: {$bug->file} : {$bug->line}\n";
+                $copyText .= "Severity: {$severityLabel}\n";
+                if ($bug->url) {
+                    $copyText .= "URL: {$bug->url}\n";
+                }
+                if ($bug->stack_trace) {
+                    $copyText .= "\n### STACK TRACE ###\n{$bug->stack_trace}";
+                }
+            @endphp
+            <button x-on:click="copyToClipboard(@js($copyText))"
                     class="inline-flex items-center text-xs bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 px-2.5 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-all shadow-sm font-medium">
                 <svg class="mr-1.5 h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

@@ -34,7 +34,8 @@ experience and the developer's technical requirements.
 * **JavaScript Error Tracking:** Automatically captures frontend errors (`window.onerror`, `window.onunhandledrejection`) and console errors with full stack traces.
 * **Smart De-duplication:** Automatically groups similar errors by normalizing messages (redacting IDs, UUIDs, etc.) before hashing.
 * **Visual Notary Button:** A discrete button injected into your application, allowing users to submit bug reports with screenshots (using [marker.js](https://marker.js.com/)), notes, and attachments.
-* **Intelligent Dashboard:** A comprehensive Livewire-powered dashboard with dark mode support, trend statistics, status management (Open, In Progress, Resolved), and advanced filtering.
+* **Intelligent Dashboard:** A comprehensive Livewire-powered dashboard with dark mode support, trend statistics, status management (Open, In Progress, Resolved), user assignment, and advanced filtering.
+* **Customizable List View:** Tailor the bug overview by toggling visibility of specific columns (Type, Status, Severity, User, Role, etc.) via configuration.
 * **GDPR Ready:** Built-in "Pixelate" tool for screenshots to blur sensitive data, plus advanced data masking for context logs.
 * **Multi-Channel Notifications:** Get alerted via Slack or Email when new unique errors occur, featuring built-in rate limiting and queue support.
 * **Screenshot & File Management:** Support for storing screenshots and attachments as files on disk or as Base64 strings.
@@ -142,12 +143,19 @@ php artisan debug-notary:test
 The configuration file `config/debug-notary.php` allows you to fine-tune the package:
 
 * `enabled`: Master toggle for the package.
+* `route_prefix`: The URL path for the dashboard (default: `laravel-debug-notary`).
 * `debug_level`: Minimum log level to capture (default: `error`).
 * `system_log`: Capture standard Laravel logs.
 * `notary_log`: Enable/disable the manual reporting button.
 * `console_log`: Automatically capture JS console errors.
+* `layout`: Custom blade layout for the dashboard (optional).
+* `screenshot_storage`: Storage method for screenshots (`file`, `base64`, or `both`).
+* `register_routes`: Toggle automatic route registration.
 * `access_gate`: Define a Gate to control who sees the button and dashboard.
+* `prune_days`: Number of days to keep logs before auto-deletion (per log type).
 * `notifications`: Configure Slack webhooks, Email recipients, and rate limiting.
+* `impersonate`: Configuration for the "Log in as user" feature.
+* `list_view.columns`: Toggle visibility of specific columns in the bug list view (Type, Status, Severity, User, etc.).
 * `masking.fields`: List of fields to redact from logs and context.
 
 #### Access Control
