@@ -148,4 +148,13 @@ return [
             'surfer_token',
         ],
     ],
+
+    /*
+     * DebugCentral Integration (Server-side logging)
+     */
+    'central' => [
+        'enabled' => env('DEBUG_NOTARY_CENTRAL_ENABLED', false),
+        'api_url' => env('DEBUG_NOTARY_API_URL'),
+        'api_key' => env('DEBUG_NOTARY_API_KEY'),
+    ],
 ];

@@ -70,6 +70,18 @@ class DebugNotary
     }
 
     /**
+     * Register the synchronization routes.
+     */
+    public static function syncRoutes(): void
+    {
+        $prefix = config('debug-notary.route_prefix', 'laravel-debug-notary');
+        Route::middleware('api')->prefix($prefix.'/sync')->group(function () {
+            Route::post('/messages', [DebugNotaryController::class, 'receiveSyncMessage']);
+            Route::patch('/bugs', [DebugNotaryController::class, 'receiveSyncBug']);
+        });
+    }
+
+    /**
      * Get the unread message count for the current user.
      */
     public static function getUnreadCountForUser(): int
@@ -124,11 +136,16 @@ class DebugNotary
     public function resolveUserContext(): array
     {
         if (static::$userContextResolver) {
-            return call_user_func(static::$userContextResolver);
+            $context = call_user_func(static::$userContextResolver);
+
+            return [
+                'user_id' => (string) ($context['user_id'] ?? Auth::id()),
+                'user_role' => (string) ($context['user_role'] ?? null),
+            ];
         }
 
         $context = [
-            'user_id' => Auth::id(),
+            'user_id' => (string) Auth::id(),
             'user_role' => null,
         ];
 
@@ -137,11 +154,149 @@ class DebugNotary
             if (isset($user->role)) {
                 $context['user_role'] = (string) $user->role;
             } elseif (method_exists($user, 'getRoleNames')) {
-                $context['user_role'] = $user->getRoleNames()->first();
+                $context['user_role'] = (string) $user->getRoleNames()->first();
             }
         }
 
         return $context;
+    }
+
+    /**
+     * Report a manual log to the system.
+     */
+    public function report(string $message, array $options = []): void
+    {
+        $severity = $options['severity'] ?? 'error';
+        $context = $options['context'] ?? [];
+        $logType = $options['log_type'] ?? 'manual';
+
+        // Prepare central payload
+        $payload = [
+            'log_type' => $logType,
+            'message' => $message,
+            'severity' => $severity,
+            'file' => $options['file'] ?? 'unknown',
+            'line' => $options['line'] ?? 0,
+            'stack_trace' => $options['stack_trace'] ?? null,
+            'url' => $options['url'] ?? request()->fullUrl(),
+            'screenshot' => $options['screenshot'] ?? null,
+            'attachment' => $options['attachment'] ?? null,
+            'attachment_name' => $options['attachment_name'] ?? null,
+            'browser_data' => $this->maskData($context),
+            'user_context' => $options['user_context'] ?? $this->resolveUserContext(),
+            'note' => $options['note'] ?? null,
+            'tags' => $options['tags'] ?? [],
+        ];
+
+        // Send to central if enabled
+        $centralId = $this->sendToCentral($payload);
+
+        // Also log locally but tell it NOT to send to central again
+        $this->log($severity, $message, array_merge($context, ['_no_central' => true, 'log_type' => $logType]));
+
+        if ($centralId) {
+            $hash = RecordedBug::generateHash($message, $payload['file'], $payload['line']);
+            $bug = RecordedBug::where('hash', $hash)->first();
+            if ($bug) {
+                $bug->central_id = $centralId;
+                $bug->save();
+            }
+        }
+    }
+
+    /**
+     * Send a log payload to DebugCentral server.
+     */
+    public function sendToCentral(array $payload): ?int
+    {
+        if (! config('debug-notary.central.enabled', false)) {
+            return null;
+        }
+
+        $url = config('debug-notary.central.api_url');
+        $apiKey = config('debug-notary.central.api_key');
+
+        if (! $url || ! $apiKey) {
+            return null;
+        }
+
+        try {
+            $response = LaravelHttp::withToken($apiKey)
+                ->timeout(5)
+                ->post($url, $this->maskData($payload));
+
+            if ($response->successful()) {
+                return $response->json('id');
+            }
+        } catch (\Exception $e) {
+            // Silent fail to not break the application
+            Log::error('DebugNotary Central Error: '.$e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Sync a chat message to DebugCentral.
+     */
+    public function syncMessageToCentral(RecordedBug $bug, RecordedBugMessage $message): void
+    {
+        if (! $bug->central_id || ! config('debug-notary.central.enabled', false)) {
+            return;
+        }
+
+        $url = config('debug-notary.central.api_url');
+        $apiKey = config('debug-notary.central.api_key');
+
+        if (! $url || ! $apiKey) {
+            return;
+        }
+
+        $baseUrl = str_replace('/logs', '', $url);
+        $messageUrl = rtrim($baseUrl, '/')."/logs/{$bug->central_id}/messages";
+
+        try {
+            LaravelHttp::withToken($apiKey)
+                ->post($messageUrl, [
+                    'message' => $message->message,
+                    'external_user_id' => (string) $message->user_id,
+                    'external_user_name' => $message->user->name ?? 'System',
+                    'attachment_path' => $message->attachment_path,
+                    'attachment_type' => $message->attachment_type,
+                ]);
+        } catch (\Exception $e) {
+            Log::error('DebugNotary Central Message Sync Error: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Sync bug status/assignment to DebugCentral.
+     */
+    public function syncBugUpdateToCentral(RecordedBug $bug): void
+    {
+        if (! $bug->central_id || ! config('debug-notary.central.enabled', false)) {
+            return;
+        }
+
+        $url = config('debug-notary.central.api_url');
+        $apiKey = config('debug-notary.central.api_key');
+
+        if (! $url || ! $apiKey) {
+            return;
+        }
+
+        $baseUrl = str_replace('/logs', '', $url);
+        $updateUrl = rtrim($baseUrl, '/')."/logs/{$bug->central_id}";
+
+        try {
+            LaravelHttp::withToken($apiKey)
+                ->patch($updateUrl, [
+                    'status' => $bug->status instanceof \UnitEnum ? $bug->status->value : $bug->status,
+                    'assigned_to_email' => $bug->assignedTo->email ?? null,
+                ]);
+        } catch (\Exception $e) {
+            Log::error('DebugNotary Central Bug Update Sync Error: '.$e->getMessage());
+        }
     }
 
     /**
@@ -175,7 +330,7 @@ class DebugNotary
                 $bug->message = $message;
                 $bug->file = $file;
                 $bug->line = $line;
-                $bug->log_type = 'notary';
+                $bug->log_type = $context['log_type'] ?? 'system';
             }
 
             $userContext = $this->resolveUserContext();
@@ -194,6 +349,26 @@ class DebugNotary
 
             if ($isNew) {
                 $this->notifyNewBug($bug);
+
+                // Send to central if it's a new unique bug and not already sent
+                if (! isset($context['_no_central'])) {
+                    $centralId = $this->sendToCentral([
+                        'log_type' => $context['log_type'] ?? 'system',
+                        'message' => $message,
+                        'severity' => $severity,
+                        'file' => $file,
+                        'line' => $line,
+                        'url' => request()->fullUrl(),
+                        'browser_data' => $bug->browser_data,
+                        'user_context' => $userContext,
+                        'tags' => [],
+                    ]);
+
+                    if ($centralId) {
+                        $bug->central_id = $centralId;
+                        $bug->save();
+                    }
+                }
             }
         } catch (\Throwable $e) {
             // Log the error to default Laravel log to help debugging the package itself

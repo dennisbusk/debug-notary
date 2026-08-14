@@ -3,6 +3,7 @@
 namespace Dennisbusk\DebugNotary\Http\Livewire;
 
 use Dennisbusk\DebugNotary\Enums\BugStatus;
+use Dennisbusk\DebugNotary\Facades\DebugNotary as DebugNotaryFacade;
 use Dennisbusk\DebugNotary\Jobs\NotifyBugActivityJob;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Livewire\Component;
@@ -49,6 +50,9 @@ class BugDetail extends Component {
             'attachment_type' => $attachmentType,
         ]);
 
+        // Synkroniser til Central
+        DebugNotaryFacade::syncMessageToCentral($this->bug, $message);
+
         // Send notifikation
         NotifyBugActivityJob::dispatch(
             $this->bug,
@@ -92,6 +96,9 @@ class BugDetail extends Component {
             $this->bug->refresh();
             $newStatus = $this->bug->status;
 
+            // Synkroniser til Central
+            DebugNotaryFacade::syncBugUpdateToCentral($this->bug);
+
             // Log historik
             $this->bug->messages()->create([
                 'user_id' => null, // System besked
@@ -115,7 +122,10 @@ class BugDetail extends Component {
             }
 
             $this->bug->update([ 'assigned_to_id' => $userId ?: null ]);
-            $this->bug->load('assignedTo');
+            $this->bug->load(['assignedTo', 'messages.user']);
+
+            // Synkroniser til Central
+            DebugNotaryFacade::syncBugUpdateToCentral($this->bug);
 
             $assigneeName = $this->bug->assignedTo->name ?? __('debug-notary::messages.nobody');
 

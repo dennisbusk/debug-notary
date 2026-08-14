@@ -32,11 +32,13 @@ class DebugNotaryController extends Controller
 
     public function storeNotary(Request $request)
     {
-        // If it's a JS error logging
-        if ($request->input('log_type') === 'javascript') {
-            $message = $request->input('message') ?? 'Script error.';
+        // If it's a JS error logging or manual report via JSON
+        if ($request->isJson() && ($request->input('log_type') === 'javascript' || $request->input('log_type') === 'manual')) {
+            $logType = $request->input('log_type');
+            $message = $request->input('message') ?? 'Log report.';
             $file = $request->input('file') ?? 'browser';
             $line = $request->input('line') ?? 0;
+            $severity = $request->input('severity', 'error');
             $hash = RecordedBug::generateHash($message, $file, $line);
 
             $bug = RecordedBug::firstOrNew(['hash' => $hash]);
@@ -46,16 +48,16 @@ class DebugNotaryController extends Controller
                 $bug->message = $message;
                 $bug->file = $file;
                 $bug->line = $line;
-                $bug->log_type = 'javascript';
-                $bug->severity = 'error';
+                $bug->log_type = $logType;
+                $bug->severity = $severity;
             }
 
-            $userContext = DebugNotary::resolveUserContext();
+            $userContext = $request->input('user_context') ?? DebugNotary::resolveUserContext();
             $bug->url = $request->input('url', request()->fullUrl());
             $bug->last_seen_at = now();
             $bug->count += 1;
-            $bug->user_id = $userContext['user_id'];
-            $bug->user_role = $userContext['user_role'];
+            $bug->user_id = $userContext['user_id'] ?? null;
+            $bug->user_role = $userContext['user_role'] ?? null;
             $bug->browser_data = DebugNotary::maskData($request->input('browser_data', []));
 
             $bug->updateTrendData();
@@ -65,6 +67,29 @@ class DebugNotaryController extends Controller
             if ($isNew) {
                 // We use the Facade call to send notifications
                 DebugNotary::notifyNewBug($bug);
+
+                // Send to central
+                $centralId = DebugNotary::sendToCentral([
+                    'log_type' => $logType,
+                    'message' => $message,
+                    'severity' => $severity,
+                    'file' => $file,
+                    'line' => $line,
+                    'stack_trace' => $request->input('browser_data.stack'),
+                    'url' => $bug->url,
+                    'screenshot' => $request->input('screenshot'),
+                    'attachment' => $request->input('attachment'),
+                    'attachment_name' => $request->input('attachment_name'),
+                    'browser_data' => $bug->browser_data,
+                    'user_context' => $userContext,
+                    'note' => $request->input('note'),
+                    'tags' => $request->input('tags', []),
+                ]);
+
+                if ($centralId) {
+                    $bug->central_id = $centralId;
+                    $bug->save();
+                }
             }
 
             return response()->json(['success' => true]);
@@ -147,19 +172,49 @@ class DebugNotaryController extends Controller
         $bug->updateTrendData();
         $bug->save();
 
+        $attachmentBase64 = null;
+        $attachmentName = null;
+
         if ($request->hasFile('attachment')) {
             $attachment = $request->file('attachment');
-            $attachmentName = 'attachment_'.time().'_'.Str::random(10).'.'.$attachment->getClientOriginalExtension();
-            $attachmentPath = 'debug-notary/attachments/'.$attachmentName;
+            $attachmentOriginalName = $attachment->getClientOriginalName();
+            $attachmentNameStore = 'attachment_'.time().'_'.Str::random(10).'.'.$attachment->getClientOriginalExtension();
+            $attachmentPath = 'debug-notary/attachments/'.$attachmentNameStore;
 
-            Storage::disk('public')->put($attachmentPath, file_get_contents($attachment));
+            $attachmentContent = file_get_contents($attachment);
+            Storage::disk('public')->put($attachmentPath, $attachmentContent);
+
+            $attachmentBase64 = base64_encode($attachmentContent);
+            $attachmentName = $attachmentOriginalName;
 
             $bug->messages()->create([
                 'user_id' => $userContext['user_id'],
-                'message' => __('debug-notary::messages.attachment_added', ['name' => $attachment->getClientOriginalName()]),
+                'message' => __('debug-notary::messages.attachment_added', ['name' => $attachmentOriginalName]),
                 'attachment_path' => $attachmentPath,
                 'attachment_type' => $attachment->getClientMimeType(),
             ]);
+        }
+
+        // Send to central
+        $centralId = DebugNotary::sendToCentral([
+            'log_type' => 'manual',
+            'message' => $bug->message,
+            'severity' => $bug->severity,
+            'file' => $bug->file,
+            'line' => $bug->line,
+            'url' => $bug->url,
+            'screenshot' => $bug->screenshot,
+            'attachment' => $attachmentBase64,
+            'attachment_name' => $attachmentName,
+            'browser_data' => $bug->browser_data,
+            'user_context' => $userContext,
+            'note' => $note,
+            'tags' => $tags,
+        ]);
+
+        if ($centralId) {
+            $bug->central_id = $centralId;
+            $bug->save();
         }
 
         return response()->json(['success' => true]);
@@ -234,5 +289,56 @@ class DebugNotaryController extends Controller
         RecordedBug::whereIn('id', $ids)->delete();
 
         return redirect()->back()->with('message', __('debug-notary::messages.bugs_deleted', ['count' => count($ids)]));
+    }
+
+    public function receiveSyncMessage(Request $request)
+    {
+        $data = $request->validate([
+            'central_id' => 'required|integer',
+            'message' => 'required|string',
+            'user_name' => 'nullable|string',
+            'attachment_path' => 'nullable|string',
+            'attachment_type' => 'nullable|string',
+        ]);
+
+        $bug = RecordedBug::where('central_id', $data['central_id'])->firstOrFail();
+
+        $bug->messages()->create([
+            'user_id' => null, // Fra central
+            'message' => ($data['user_name'] ? $data['user_name'].': ' : '').$data['message'],
+            'attachment_path' => $data['attachment_path'],
+            'attachment_type' => $data['attachment_type'],
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function receiveSyncBug(Request $request)
+    {
+        $data = $request->validate([
+            'central_id' => 'required|integer',
+            'status' => 'nullable|string',
+            'assigned_to_email' => 'nullable|string',
+        ]);
+
+        $bug = RecordedBug::where('central_id', $data['central_id'])->firstOrFail();
+
+        if (isset($data['status'])) {
+            $bug->status = $data['status'];
+        }
+
+        if (array_key_exists('assigned_to_email', $data)) {
+            if ($data['assigned_to_email']) {
+                $userModel = config('auth.providers.users.model');
+                $user = $userModel::where('email', $data['assigned_to_email'])->first();
+                $bug->assigned_to_id = $user ? $user->id : null;
+            } else {
+                $bug->assigned_to_id = null;
+            }
+        }
+
+        $bug->save();
+
+        return response()->json(['success' => true]);
     }
 }

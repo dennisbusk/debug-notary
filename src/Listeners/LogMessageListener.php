@@ -112,6 +112,20 @@ class LogMessageListener
 
         if ($isNew) {
             DebugNotary::notifyNewBug($bug);
+
+            // Send to central
+            DebugNotary::sendToCentral([
+                'log_type' => (isset($context['notary']) && $context['notary'] === true) ? 'manual' : 'system',
+                'message' => $message,
+                'severity' => $event->level,
+                'file' => $file,
+                'line' => $line,
+                'stack_trace' => $stackTrace,
+                'url' => request()->fullUrl(),
+                'browser_data' => $bug->browser_data,
+                'user_context' => $userContext,
+                'tags' => isset($context['tags']) ? (is_array($context['tags']) ? $context['tags'] : [$context['tags']]) : [],
+            ]);
         }
     }
 }
