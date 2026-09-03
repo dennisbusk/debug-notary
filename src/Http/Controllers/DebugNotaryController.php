@@ -183,7 +183,7 @@ class DebugNotaryController extends Controller
             $attachmentPath = 'debug-notary/attachments/'.$attachmentNameStore;
 
             $attachmentContent = file_get_contents($attachment);
-            Storage::disk('public')->put($attachmentPath, $attachmentContent);
+            Storage::disk('local')->put($attachmentPath, $attachmentContent);
 
             $attachmentBase64 = base64_encode($attachmentContent);
             $attachmentName = $attachmentOriginalName;
@@ -324,24 +324,95 @@ class DebugNotaryController extends Controller
 
         $data = $request->validate([
             'central_id' => 'required|integer',
-            'message' => 'required|string',
+            'message' => 'nullable|string',
             'user_name' => 'nullable|string',
             'attachment_path' => 'nullable|string',
             'attachment_type' => 'nullable|string',
+            'attachment_name' => 'nullable|string',
+            'attachment_data' => 'nullable|string',
+            'attachment_base64' => 'nullable|string',
+            'attachment' => 'nullable',
+            'file' => 'nullable|file',
         ]);
 
         $bug = RecordedBug::where('central_id', $data['central_id'])->firstOrFail();
 
         $userName = $data['user_name'] ?? null;
+        $attachmentPath = null;
+        $attachmentType = $data['attachment_type'] ?? null;
+
+        if ($request->hasFile('attachment')) {
+            $file = $request->file('attachment');
+            $attachmentPath = $file->store('debug-notary/attachments', 'local');
+            $attachmentType = $attachmentType ?: ($file->getClientOriginalExtension() ?: pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
+        } elseif ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $attachmentPath = $file->store('debug-notary/attachments', 'local');
+            $attachmentType = $attachmentType ?: ($file->getClientOriginalExtension() ?: pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
+        } elseif (! empty($data['attachment_data']) || ! empty($data['attachment_base64']) || (isset($data['attachment']) && is_string($data['attachment']) && ! empty($data['attachment']))) {
+            $rawBase64 = $data['attachment_data'] ?? $data['attachment_base64'] ?? $data['attachment'];
+
+            if (str_contains($rawBase64, 'base64,')) {
+                $rawBase64 = explode('base64,', $rawBase64)[1];
+            }
+
+            $decoded = base64_decode($rawBase64, true);
+            if ($decoded !== false) {
+                $ext = $attachmentType;
+                if (! $ext && ! empty($data['attachment_name'])) {
+                    $ext = pathinfo($data['attachment_name'], PATHINFO_EXTENSION);
+                }
+                if (! $ext && ! empty($data['attachment_path'])) {
+                    $ext = pathinfo($data['attachment_path'], PATHINFO_EXTENSION);
+                }
+                $ext = $ext ? strtolower($ext) : 'bin';
+
+                $filename = 'debug-notary/attachments/' . Str::random(40) . '.' . $ext;
+                Storage::disk('local')->put($filename, $decoded);
+                $attachmentPath = $filename;
+                $attachmentType = $ext;
+            }
+        } elseif (! empty($data['attachment_path'])) {
+            $attachmentPath = $data['attachment_path'];
+            $attachmentType = $attachmentType ?: pathinfo($attachmentPath, PATHINFO_EXTENSION);
+        }
 
         $bug->messages()->create([
             'user_id' => null, // Fra central
-            'message' => ($userName ? $userName.': ' : '').$data['message'],
-            'attachment_path' => $data['attachment_path'] ?? null,
-            'attachment_type' => $data['attachment_type'] ?? null,
+            'message' => ($userName ? $userName.': ' : '').($data['message'] ?? ''),
+            'attachment_path' => $attachmentPath,
+            'attachment_type' => $attachmentType,
         ]);
 
         return response()->json(['success' => true]);
+    }
+
+    public function messageAttachment(Request $request, $bugId, $messageId)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        $bug = RecordedBug::findOrFail($bugId);
+        $message = $bug->messages()->findOrFail($messageId);
+
+        if (! $message->attachment_path) {
+            abort(404, 'Attachment not found');
+        }
+
+        $disk = Storage::disk('local')->exists($message->attachment_path)
+            ? 'local'
+            : (Storage::disk('public')->exists($message->attachment_path) ? 'public' : null);
+
+        if (! $disk) {
+            abort(404, 'Attachment file not found');
+        }
+
+        if ($request->boolean('download')) {
+            return Storage::disk($disk)->download($message->attachment_path, basename($message->attachment_path));
+        }
+
+        return Storage::disk($disk)->response($message->attachment_path);
     }
 
     public function receiveSyncBug(Request $request)

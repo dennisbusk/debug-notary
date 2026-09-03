@@ -41,7 +41,7 @@ class BugDetail extends Component
         $attachmentType = null;
 
         if ($this->attachment) {
-            $attachmentPath = $this->attachment->store('debug-notary/attachments', 'public');
+            $attachmentPath = $this->attachment->store('debug-notary/attachments', 'local');
             $attachmentType = $this->attachment->getClientOriginalExtension();
         }
 

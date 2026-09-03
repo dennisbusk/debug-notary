@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Http as LaravelHttp;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 class DebugNotary
 {
@@ -83,6 +84,7 @@ class DebugNotary
         Route::patch($prefix.'/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
         Route::delete($prefix.'/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
         Route::post($prefix.'/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
+        Route::get($prefix.'/{bug}/messages/{message}/attachment', [DebugNotaryController::class, 'messageAttachment'])->name('debug-notary.messages.attachment');
     }
 
     /**
@@ -323,13 +325,30 @@ class DebugNotary
                 $client = $client->withoutVerifying();
             }
 
-            $client->post($messageUrl, [
+            $payload = [
                 'message' => $message->message,
                 'external_user_id' => $message->user_id ? (string) $message->user_id : null,
                 'external_user_name' => $userName,
                 'attachment_path' => $message->attachment_path,
                 'attachment_type' => $message->attachment_type,
-            ]);
+            ];
+
+            if ($message->attachment_path) {
+                $disk = Storage::disk('local')->exists($message->attachment_path)
+                    ? 'local'
+                    : (Storage::disk('public')->exists($message->attachment_path) ? 'public' : null);
+
+                if ($disk) {
+                    $fileContent = Storage::disk($disk)->get($message->attachment_path);
+                    $base64Content = base64_encode($fileContent);
+                    $payload['attachment_name'] = basename($message->attachment_path);
+                    $payload['attachment_data'] = $base64Content;
+                    $payload['attachment_base64'] = $base64Content;
+                    $payload['attachment'] = $base64Content;
+                }
+            }
+
+            $client->post($messageUrl, $payload);
         } catch (\Exception $e) {
             Log::error('DebugNotary Central Message Sync Error: '.$e->getMessage());
         }

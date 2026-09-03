@@ -233,11 +233,12 @@
                                 @if($msg->attachment_path)
                                     <div class="mt-2 pt-2 border-t {{ $msg->user_id && $msg->user_id === auth()->id() ? 'border-indigo-400' : 'border-gray-200 dark:border-gray-600' }}">
                                         @if(in_array(strtolower($msg->attachment_type ?? pathinfo($msg->attachment_path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']))
-                                            <img src="{{ Storage::disk('public')->url($msg->attachment_path) }}"
-                                                 x-on:click="openFullscreen('{{ Storage::disk('public')->url($msg->attachment_path) }}')"
-                                                 class="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity">
+                                            <img src="{{ route('debug-notary.messages.attachment', [$bug, $msg]) }}"
+                                                 x-on:click="openFullscreen('{{ route('debug-notary.messages.attachment', [$bug, $msg]) }}')"
+                                                 class="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                                 alt="Vedhæftning">
                                         @else
-                                            <a href="{{ Storage::disk('public')->url($msg->attachment_path) }}" target="_blank"
+                                            <a href="{{ route('debug-notary.messages.attachment', [$bug, $msg, 'download' => 1]) }}" target="_blank"
                                                class="flex items-center gap-2 text-xs {{ $msg->user_id && $msg->user_id === auth()->id() ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-500' }} font-bold transition-colors">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
