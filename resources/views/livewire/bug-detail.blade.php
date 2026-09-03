@@ -220,69 +220,60 @@
                     </h3>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-800">
+                <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-800" wire:poll.5s>
                     @forelse($bug->messages as $msg)
-                        @if($msg->user_id === null)
-                            <!-- System Message -->
-                            <div class="flex justify-center my-2">
-                                <div class="px-4 py-1 bg-gray-100 dark:bg-gray-900/50 rounded-full border border-gray-200 dark:border-gray-700">
-                                    <span class="text-[10px] text-gray-500 italic">{{ $msg->message }}</span>
-                                </div>
-                            </div>
-                        @else
-                            <div class="flex flex-col {{ $msg->user_id === auth()->id() ? 'items-end' : 'items-start' }}">
-                                <div class="max-w-[85%] rounded-2xl px-4 py-2 {{ $msg->user_id === auth()->id() ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 dark:text-white rounded-tl-none shadow-sm' }}">
-                                    @if($msg->message)
-                                        <div class="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/20">
-                                            {!! \Illuminate\Support\Str::markdown($msg->message) !!}
-                                        </div>
-                                    @endif
+                        <div class="flex flex-col {{ $msg->user_id && $msg->user_id === auth()->id() ? 'items-end' : 'items-start' }}">
+                            <div class="max-w-[85%] rounded-2xl px-4 py-2 {{ $msg->user_id && $msg->user_id === auth()->id() ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 dark:text-white rounded-tl-none shadow-sm' }}">
+                                @if($msg->message)
+                                    <div class="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/20">
+                                        {!! \Illuminate\Support\Str::markdown($msg->message) !!}
+                                    </div>
+                                @endif
 
-                                    @if($msg->attachment_path)
-                                        <div class="mt-2 pt-2 border-t {{ $msg->user_id === auth()->id() ? 'border-indigo-400' : 'border-gray-200 dark:border-gray-600' }}">
-                                            @if(in_array(strtolower($msg->attachment_type), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']))
-                                                <img src="{{ Storage::disk('public')->url($msg->attachment_path) }}"
-                                                     x-on:click="openFullscreen('{{ Storage::disk('public')->url($msg->attachment_path) }}')"
-                                                     class="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity">
-                                            @else
-                                                <a href="{{ Storage::disk('public')->url($msg->attachment_path) }}" target="_blank"
-                                                   class="flex items-center gap-2 text-xs {{ $msg->user_id === auth()->id() ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-500' }} font-bold transition-colors">
-                                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                                    </svg>
-                                                    {{ basename($msg->attachment_path) }}
-                                                </a>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="flex items-center mt-1 gap-1.5 px-1">
-                                    @if($msg->user_id !== auth()->id())
-                                        <span class="text-[10px] text-gray-500 font-medium">{{ $msg->user->name ?? 'System' }}</span>
-                                        <span class="text-[10px] text-gray-400">•</span>
-                                    @endif
-                                    <span class="text-[10px] text-gray-400">{{ $msg->created_at->diffForHumans() }}</span>
-
-                                    @if($msg->user_id !== auth()->id() && config('debug-notary.impersonate.enabled', true))
-                                        @php
-                                            $canImpersonate = false;
-                                            try {
-                                                $canImpersonate = method_exists(auth()->user(), 'canImpersonate') && auth()->user()->canImpersonate();
-                                            } catch (\Exception $e) {}
-                                        @endphp
-
-                                        @if($canImpersonate && $msg->user_id)
-                                            <span class="text-[10px] text-gray-400">•</span>
-                                            <a href="{{ config('debug-notary.impersonate.prefix', '/impersonate/take/') }}{{ $msg->user_id }}"
-                                               class="text-[10px] text-indigo-600 hover:underline font-bold">
-                                                {{ __('debug-notary::messages.impersonate_user', ['user' => $msg->user->name ?? '']) }}
+                                @if($msg->attachment_path)
+                                    <div class="mt-2 pt-2 border-t {{ $msg->user_id && $msg->user_id === auth()->id() ? 'border-indigo-400' : 'border-gray-200 dark:border-gray-600' }}">
+                                        @if(in_array(strtolower($msg->attachment_type ?? pathinfo($msg->attachment_path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']))
+                                            <img src="{{ Storage::disk('public')->url($msg->attachment_path) }}"
+                                                 x-on:click="openFullscreen('{{ Storage::disk('public')->url($msg->attachment_path) }}')"
+                                                 class="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity">
+                                        @else
+                                            <a href="{{ Storage::disk('public')->url($msg->attachment_path) }}" target="_blank"
+                                               class="flex items-center gap-2 text-xs {{ $msg->user_id && $msg->user_id === auth()->id() ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-500' }} font-bold transition-colors">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                </svg>
+                                                {{ basename($msg->attachment_path) }}
                                             </a>
                                         @endif
-                                    @endif
-                                </div>
+                                    </div>
+                                @endif
                             </div>
-                        @endif
+                            <div class="flex items-center mt-1 gap-1.5 px-1">
+                                @if(!$msg->user_id || $msg->user_id !== auth()->id())
+                                    <span class="text-[10px] text-gray-500 font-medium">{{ $msg->user ? $msg->user->name : ($msg->user_id ? "User #{$msg->user_id}" : 'System') }}</span>
+                                    <span class="text-[10px] text-gray-400">•</span>
+                                @endif
+                                <span class="text-[10px] text-gray-400">{{ $msg->created_at->diffForHumans() }}</span>
+
+                                @if($msg->user_id && $msg->user_id !== auth()->id() && config('debug-notary.impersonate.enabled', true))
+                                    @php
+                                        $canImpersonate = false;
+                                        try {
+                                            $canImpersonate = method_exists(auth()->user(), 'canImpersonate') && auth()->user()->canImpersonate();
+                                        } catch (\Exception $e) {}
+                                    @endphp
+
+                                    @if($canImpersonate && $msg->user_id)
+                                        <span class="text-[10px] text-gray-400">•</span>
+                                        <a href="{{ config('debug-notary.impersonate.prefix', '/impersonate/take/') }}{{ $msg->user_id }}"
+                                           class="text-[10px] text-indigo-600 hover:underline font-bold">
+                                            {{ __('debug-notary::messages.impersonate_user', ['user' => $msg->user ? $msg->user->name : ($msg->user_id ? "User #{$msg->user_id}" : '')]) }}
+                                        </a>
+                                    @endif
+                                @endif
+                            </div>
+                        </div>
                     @empty
                         <div class="flex flex-col items-center justify-center h-full text-center p-4">
                             <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-3">

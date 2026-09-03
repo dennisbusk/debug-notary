@@ -225,6 +225,41 @@ class DebugNotary
     }
 
     /**
+     * Determine whether SSL verification should be enabled for HTTP requests to DebugCentral.
+     */
+    public function shouldVerifySsl(?string $url = null): bool
+    {
+        $configured = config('debug-notary.central.verify_ssl');
+        if ($configured !== null) {
+            return (bool) $configured;
+        }
+
+        $envVal = env('DEBUG_NOTARY_CENTRAL_VERIFY_SSL');
+        if ($envVal !== null) {
+            return (bool) $envVal;
+        }
+
+        if (app()->environment('local', 'testing')) {
+            return false;
+        }
+
+        if ($url) {
+            $host = parse_url($url, PHP_URL_HOST);
+            if (! $host) {
+                $host = parse_url('https://'.$url, PHP_URL_HOST);
+            }
+            if ($host) {
+                $host = strtolower($host);
+                if (str_ends_with($host, '.test') || str_ends_with($host, '.local') || str_ends_with($host, '.localhost') || $host === 'localhost' || $host === '127.0.0.1') {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Send a log payload to DebugCentral server.
      */
     public function sendToCentral(array $payload): ?int
@@ -241,9 +276,12 @@ class DebugNotary
         }
 
         try {
-            $response = LaravelHttp::withToken($apiKey)
-                ->timeout(5)
-                ->post($url, $this->maskData($payload));
+            $client = LaravelHttp::timeout(10)->acceptJson()->withToken($apiKey);
+            if (! $this->shouldVerifySsl($url)) {
+                $client = $client->withoutVerifying();
+            }
+
+            $response = $client->post($url, $this->maskData($payload));
 
             if ($response->successful()) {
                 return $response->json('id');
@@ -272,18 +310,26 @@ class DebugNotary
             return;
         }
 
-        $baseUrl = str_replace('/logs', '', $url);
+        $baseUrl = preg_replace('#/logs/?$#', '', $url);
         $messageUrl = rtrim($baseUrl, '/')."/logs/{$bug->central_id}/messages";
 
         try {
-            LaravelHttp::withToken($apiKey)
-                ->post($messageUrl, [
-                    'message' => $message->message,
-                    'external_user_id' => (string) $message->user_id,
-                    'external_user_name' => $message->user->name ?? 'System',
-                    'attachment_path' => $message->attachment_path,
-                    'attachment_type' => $message->attachment_type,
-                ]);
+            $userName = $message->user?->name
+                ?? (auth()->check() && auth()->id() == $message->user_id ? auth()->user()->name : null)
+                ?? ($message->user_id ? "User #{$message->user_id}" : 'System');
+
+            $client = LaravelHttp::timeout(10)->acceptJson()->withToken($apiKey);
+            if (! $this->shouldVerifySsl($messageUrl)) {
+                $client = $client->withoutVerifying();
+            }
+
+            $client->post($messageUrl, [
+                'message' => $message->message,
+                'external_user_id' => $message->user_id ? (string) $message->user_id : null,
+                'external_user_name' => $userName,
+                'attachment_path' => $message->attachment_path,
+                'attachment_type' => $message->attachment_type,
+            ]);
         } catch (\Exception $e) {
             Log::error('DebugNotary Central Message Sync Error: '.$e->getMessage());
         }
@@ -305,20 +351,24 @@ class DebugNotary
             return;
         }
 
-        $baseUrl = str_replace('/logs', '', $url);
+        $baseUrl = preg_replace('#/logs/?$#', '', $url);
         $updateUrl = rtrim($baseUrl, '/')."/logs/{$bug->central_id}";
 
         try {
             $assignedUser = $bug->assignedTo;
 
-            LaravelHttp::withToken($apiKey)
-                ->patch($updateUrl, [
-                    'status' => $bug->status instanceof \UnitEnum ? $bug->status->value : $bug->status,
-                    'assigned_to_email' => $assignedUser?->email,
-                    'assigned_to_name' => $assignedUser?->name,
-                    'assigned_to_type' => 'site',
-                    'external_user_id' => $assignedUser ? (string) $assignedUser->getKey() : null,
-                ]);
+            $client = LaravelHttp::timeout(10)->acceptJson()->withToken($apiKey);
+            if (! $this->shouldVerifySsl($updateUrl)) {
+                $client = $client->withoutVerifying();
+            }
+
+            $client->patch($updateUrl, [
+                'status' => $bug->status instanceof \UnitEnum ? $bug->status->value : $bug->status,
+                'assigned_to_email' => $assignedUser?->email,
+                'assigned_to_name' => $assignedUser?->name,
+                'assigned_to_type' => 'site',
+                'external_user_id' => $assignedUser ? (string) $assignedUser->getKey() : null,
+            ]);
         } catch (\Exception $e) {
             Log::error('DebugNotary Central Bug Update Sync Error: '.$e->getMessage());
         }
@@ -384,16 +434,18 @@ class DebugNotary
 
         $users = $users ?? $this->resolveUsersForSync();
 
-        $baseUrl = str_replace('/logs', '', $url);
+        $baseUrl = preg_replace('#/logs/?$#', '', $url);
         $syncUrl = rtrim($baseUrl, '/').'/sites/users';
 
         try {
-            $response = LaravelHttp::withToken($apiKey)
-                ->acceptJson()
-                ->timeout(15)
-                ->post($syncUrl, [
-                    'users' => $users,
-                ]);
+            $client = LaravelHttp::timeout(15)->acceptJson()->withToken($apiKey);
+            if (! $this->shouldVerifySsl($syncUrl)) {
+                $client = $client->withoutVerifying();
+            }
+
+            $response = $client->post($syncUrl, [
+                'users' => $users,
+            ]);
 
             if (! $response->successful()) {
                 Log::error('DebugNotary Sync Users to Central Error: HTTP '.$response->status().' '.$response->body());
