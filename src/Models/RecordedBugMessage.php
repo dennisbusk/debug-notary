@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 class RecordedBugMessage extends Model
@@ -17,7 +18,7 @@ class RecordedBugMessage extends Model
     {
         $userModel = config('debug-notary.user_model')
             ?: config('auth.providers.users.model')
-            ?: \App\Models\User::class;
+            ?: User::class;
 
         return $this->belongsTo($userModel);
     }

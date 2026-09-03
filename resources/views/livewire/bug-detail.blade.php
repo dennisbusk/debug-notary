@@ -73,7 +73,7 @@
                         {{ __('debug-notary::messages.copied') }}
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
                         <div class="space-y-1">
                             <span class="text-xs text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.severity') }}</span>
                             <div class="flex items-center">
@@ -97,6 +97,26 @@
                             <span class="text-xs text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.assigned_to') }}</span>
                             <div class="text-sm font-medium dark:text-gray-200">
                                 {{ $bug->assignedTo->name ?? __('debug-notary::messages.nobody') }}
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-xs text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.estimate') }}</span>
+                            <div class="text-sm font-medium dark:text-gray-200 flex flex-col">
+                                @if($bug->formattedEstimate())
+                                    <span class="font-semibold">{{ $bug->formattedEstimate() }}</span>
+                                    @if($bug->isEstimateAccepted())
+                                        <span class="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-0.5" title="{{ __('debug-notary::messages.estimate_accepted_binding', ['name' => $bug->estimateAcceptedByName() ?? __('debug-notary::messages.nobody'), 'time' => $bug->estimate_accepted_at?->format('d/m/Y H:i')]) }}">
+                                            <svg class="w-3 h-3 text-green-500 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            {{ __('debug-notary::messages.estimate_accepted') }}
+                                        </span>
+                                    @else
+                                        <span class="text-[10px] text-amber-500 dark:text-amber-400 font-medium">
+                                            {{ __('debug-notary::messages.estimate_pending') }}
+                                        </span>
+                                    @endif
+                                @else
+                                    <span class="text-gray-400 dark:text-gray-500 text-xs">{{ __('debug-notary::messages.estimate_not_set') }}</span>
+                                @endif
                             </div>
                         </div>
                         <div class="space-y-1">
@@ -196,6 +216,41 @@
                                     </option>
                                 @endforeach
                             </select>
+                        </div>
+
+                        <!-- Estimate Section -->
+                        <div class="flex flex-col gap-1.5">
+                            <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.time_estimate') }}</span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="0" wire:model="estimateHours" placeholder="0" {{ $bug->isEstimateAccepted() ? 'disabled' : '' }}
+                                           class="w-14 px-2 py-1 text-[11px] border rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-700 focus:ring-indigo-500 focus:border-indigo-500" />
+                                    <span class="text-xs text-gray-500 font-medium">{{ __('debug-notary::messages.hours') }}</span>
+                                    <input type="number" min="0" max="59" wire:model="estimateMinutes" placeholder="0" {{ $bug->isEstimateAccepted() ? 'disabled' : '' }}
+                                           class="w-14 px-2 py-1 text-[11px] border rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-700 focus:ring-indigo-500 focus:border-indigo-500" />
+                                    <span class="text-xs text-gray-500 font-medium">{{ __('debug-notary::messages.minutes') }}</span>
+                                </div>
+
+                                @if(! $bug->isEstimateAccepted())
+                                    <button type="button" wire:click="updateEstimate"
+                                            class="inline-flex items-center px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">
+                                        {{ __('debug-notary::messages.save_estimate') }}
+                                    </button>
+                                    @if($bug->formattedEstimate())
+                                        <button type="button" wire:click="acceptEstimate"
+                                                wire:confirm="{{ __('debug-notary::messages.confirm_accept_estimate', ['estimate' => $bug->formattedEstimate()]) }}"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            {{ __('debug-notary::messages.accept_estimate') }}
+                                        </button>
+                                    @endif
+                                @else
+                                    <div class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-[11px] text-green-700 dark:text-green-300 font-medium">
+                                        <svg class="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        <span>{{ __('debug-notary::messages.estimate_accepted_by', ['name' => $bug->estimateAcceptedByName() ?? __('debug-notary::messages.nobody'), 'time' => $bug->estimate_accepted_at?->format('d/m/Y H:i')]) }}</span>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     </div>
 

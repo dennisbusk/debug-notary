@@ -129,6 +129,7 @@ return [
         'columns' => [
             'type' => true,
             'status' => true,
+            'estimate' => true,
             'trend' => true,
             'last_seen' => true,
             'severity' => true,

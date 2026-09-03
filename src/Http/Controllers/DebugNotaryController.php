@@ -3,6 +3,7 @@
 namespace Dennisbusk\DebugNotary\Http\Controllers;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Dennisbusk\DebugNotary\Facades\DebugNotary;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Http\Request;
@@ -367,7 +368,7 @@ class DebugNotaryController extends Controller
                 }
                 $ext = $ext ? strtolower($ext) : 'bin';
 
-                $filename = 'debug-notary/attachments/' . Str::random(40) . '.' . $ext;
+                $filename = 'debug-notary/attachments/'.Str::random(40).'.'.$ext;
                 Storage::disk('local')->put($filename, $decoded);
                 $attachmentPath = $filename;
                 $attachmentType = $ext;
@@ -426,31 +427,127 @@ class DebugNotaryController extends Controller
             'assigned_to_name' => 'nullable|string',
             'assigned_to_type' => 'nullable|string',
             'external_user_id' => 'nullable|string',
+            'user_name' => 'nullable|string',
+            'external_user_name' => 'nullable|string',
+            'estimate_hours' => 'nullable|integer|min:0',
+            'estimate_minutes' => 'nullable|integer|min:0|max:59',
+            'estimate_accepted' => 'nullable|boolean',
+            'estimate_accepted_at' => 'nullable|date',
+            'estimate_accepted_by_name' => 'nullable|string',
+            'estimate_accepted_by_email' => 'nullable|string',
         ]);
 
         $bug = RecordedBug::where('central_id', $data['central_id'])->firstOrFail();
 
+        $actorName = $data['external_user_name'] ?? $data['user_name'] ?? $data['assigned_to_name'] ?? 'DebugCentral';
+
         if (isset($data['status'])) {
-            $bug->status = $data['status'];
+            $currentStatusVal = $bug->status instanceof \UnitEnum ? $bug->status->value : $bug->status;
+            if ($currentStatusVal !== $data['status']) {
+                $statusLabels = [
+                    'open' => 'Åben',
+                    'in_progress' => 'I gang',
+                    'pending' => 'Venter',
+                    'resolved' => 'Løst',
+                    'wont_fix' => 'Løses ikke',
+                ];
+                $statusLabel = $statusLabels[$data['status']] ?? $data['status'];
+                $bug->status = $data['status'];
+                $bug->messages()->create([
+                    'user_id' => null,
+                    'message' => "Status ændret til '{$statusLabel}' af {$actorName}",
+                ]);
+            }
         }
 
         if (array_key_exists('assigned_to_email', $data)) {
+            $oldAssigneeId = $bug->assigned_to_id;
+            $newAssignee = null;
             if ($data['assigned_to_email']) {
                 $userModel = config('debug-notary.user_model')
                     ?: config('auth.providers.users.model')
                     ?: User::class;
 
-                $user = null;
                 if (! empty($data['external_user_id']) && class_exists($userModel)) {
-                    $user = $userModel::find($data['external_user_id']);
+                    $newAssignee = $userModel::find($data['external_user_id']);
                 }
-                if (! $user && ! empty($data['assigned_to_email']) && class_exists($userModel)) {
-                    $user = $userModel::where('email', $data['assigned_to_email'])->first();
+                if (! $newAssignee && ! empty($data['assigned_to_email']) && class_exists($userModel)) {
+                    $newAssignee = $userModel::where('email', $data['assigned_to_email'])->first();
                 }
-                $bug->assigned_to_id = $user ? $user->id : null;
+                $bug->assigned_to_id = $newAssignee ? $newAssignee->id : null;
             } else {
                 $bug->assigned_to_id = null;
             }
+
+            if ($oldAssigneeId !== $bug->assigned_to_id) {
+                $assigneeName = $newAssignee?->name ?? $data['assigned_to_name'] ?? null;
+                if ($assigneeName) {
+                    $bug->messages()->create([
+                        'user_id' => null,
+                        'message' => "Tildelt til {$assigneeName} af {$actorName}",
+                    ]);
+                } else {
+                    $bug->messages()->create([
+                        'user_id' => null,
+                        'message' => "Tildeling fjernet af {$actorName}",
+                    ]);
+                }
+            }
+        }
+
+        // Handle estimate hours and minutes if estimate is not yet accepted (acceptance is binding)
+        if ((array_key_exists('estimate_hours', $data) || array_key_exists('estimate_minutes', $data)) && ! $bug->isEstimateAccepted()) {
+            $newHours = array_key_exists('estimate_hours', $data) ? ($data['estimate_hours'] !== null && $data['estimate_hours'] !== '' ? (int) $data['estimate_hours'] : null) : $bug->estimate_hours;
+            $newMinutes = array_key_exists('estimate_minutes', $data) ? ($data['estimate_minutes'] !== null && $data['estimate_minutes'] !== '' ? (int) $data['estimate_minutes'] : null) : $bug->estimate_minutes;
+
+            if ($newHours !== $bug->estimate_hours || $newMinutes !== $bug->estimate_minutes) {
+                $bug->estimate_hours = $newHours;
+                $bug->estimate_minutes = $newMinutes;
+
+                $formatted = $bug->formattedEstimate();
+                if ($formatted) {
+                    $bug->messages()->create([
+                        'user_id' => null,
+                        'message' => "Estimat sat til {$formatted} af {$actorName}",
+                    ]);
+                } else {
+                    $bug->messages()->create([
+                        'user_id' => null,
+                        'message' => "Estimat fjernet af {$actorName}",
+                    ]);
+                }
+            }
+        }
+
+        // Handle estimate acceptance
+        $estimateAccepted = isset($data['estimate_accepted']) ? filter_var($data['estimate_accepted'], FILTER_VALIDATE_BOOLEAN) : false;
+        if (($estimateAccepted || ! empty($data['estimate_accepted_at'])) && ! $bug->isEstimateAccepted()) {
+            $acceptedAt = ! empty($data['estimate_accepted_at']) ? Carbon::parse($data['estimate_accepted_at']) : now();
+            $acceptedByName = $data['estimate_accepted_by_name'] ?? $actorName;
+
+            $userModel = config('debug-notary.user_model')
+                ?: config('auth.providers.users.model')
+                ?: User::class;
+
+            $acceptedUser = null;
+            if (! empty($data['external_user_id']) && class_exists($userModel)) {
+                $acceptedUser = $userModel::find($data['external_user_id']);
+            }
+            if (! $acceptedUser && ! empty($data['estimate_accepted_by_email']) && class_exists($userModel)) {
+                $acceptedUser = $userModel::where('email', $data['estimate_accepted_by_email'])->first();
+            }
+
+            $bug->estimate_accepted_at = $acceptedAt;
+            $bug->estimate_accepted_by_id = $acceptedUser?->id;
+            $bug->estimate_accepted_by_name = $acceptedByName;
+
+            $formatted = $bug->formattedEstimate() ?: '0 timer 0 minutter';
+            $dateStr = $acceptedAt->format('d/m/Y H:i');
+
+            $bug->messages()->create([
+                'user_id' => null,
+                'message' => "Estimat ({$formatted}) godkendt bindende af {$acceptedByName} ({$dateStr})",
+            ]);
         }
 
         $bug->save();

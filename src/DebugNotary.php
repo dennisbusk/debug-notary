@@ -375,6 +375,7 @@ class DebugNotary
 
         try {
             $assignedUser = $bug->assignedTo;
+            $userName = auth()->user()?->name ?? 'System';
 
             $client = LaravelHttp::timeout(10)->acceptJson()->withToken($apiKey);
             if (! $this->shouldVerifySsl($updateUrl)) {
@@ -387,6 +388,13 @@ class DebugNotary
                 'assigned_to_name' => $assignedUser?->name,
                 'assigned_to_type' => 'site',
                 'external_user_id' => $assignedUser ? (string) $assignedUser->getKey() : null,
+                'user_name' => $userName,
+                'external_user_name' => $userName,
+                'estimate_hours' => $bug->estimate_hours,
+                'estimate_minutes' => $bug->estimate_minutes,
+                'estimate_accepted' => $bug->isEstimateAccepted(),
+                'estimate_accepted_at' => $bug->estimate_accepted_at?->toIso8601String(),
+                'estimate_accepted_by_name' => $bug->estimateAcceptedByName(),
             ]);
         } catch (\Exception $e) {
             Log::error('DebugNotary Central Bug Update Sync Error: '.$e->getMessage());
