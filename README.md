@@ -86,9 +86,9 @@ DebugNotary::info('User accessed premium feature', [
 
 ### 📋 Requirements
 
-* **PHP:** ^8.2
-* **Laravel:** ^10.0, ^11.0, or ^12.0
-* **Livewire:** ^3.0 or ^4.0
+* **PHP:** ^8.1, ^8.2, ^8.3, or ^8.4
+* **Laravel:** ^9.0, ^10.0, ^11.0, or ^12.0
+* **Livewire:** ^2.0, ^3.0, or ^4.0
 
 ---
 

@@ -20,10 +20,26 @@ class BugRow extends Component
         $this->selected = $selected;
     }
 
+    public function toggleSelect()
+    {
+        $this->selected = ! $this->selected;
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('toggleSelect', bugId: $this->bug->id);
+        } elseif (method_exists($this, 'emitUp')) {
+            $this->emitUp('toggleSelect', $this->bug->id);
+        } else {
+            $this->emit('toggleSelect', $this->bug->id);
+        }
+    }
+
     public function updateStatus($status)
     {
         $this->bug->update(['status' => $status]);
-        $this->dispatch('statusUpdated');
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('statusUpdated');
+        } elseif (method_exists($this, 'emit')) {
+            $this->emit('statusUpdated');
+        }
     }
 
     public function render()
