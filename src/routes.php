@@ -15,6 +15,7 @@ Route::group(['middleware' => 'web'], function () {
 });
 
 Route::middleware('api')->prefix(config('debug-notary.route_prefix', 'laravel-debug-notary').'/sync')->group(function () {
+    Route::get('/users', [DebugNotaryController::class, 'getSyncUsers']);
     Route::post('/messages', [DebugNotaryController::class, 'receiveSyncMessage']);
     Route::patch('/bugs', [DebugNotaryController::class, 'receiveSyncBug']);
 });

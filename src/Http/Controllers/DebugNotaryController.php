@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary\Http\Controllers;
 
+use App\Models\User;
 use Dennisbusk\DebugNotary\Facades\DebugNotary;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Http\Request;
@@ -291,8 +292,36 @@ class DebugNotaryController extends Controller
         return redirect()->back()->with('message', __('debug-notary::messages.bugs_deleted', ['count' => count($ids)]));
     }
 
+    protected function authorizeSyncRequest(Request $request): void
+    {
+        $configuredKey = config('debug-notary.api_key') ?: config('debug-notary.central.api_key');
+
+        if (! empty($configuredKey)) {
+            $token = $request->bearerToken()
+                ?? $request->header('X-Notary-Token')
+                ?? $request->header('X-Api-Key');
+
+            if (! $token || ! hash_equals((string) $configuredKey, (string) $token)) {
+                abort(response()->json(['message' => 'Unauthorized'], 401));
+            }
+        }
+    }
+
+    public function getSyncUsers(Request $request)
+    {
+        $this->authorizeSyncRequest($request);
+
+        $users = DebugNotary::resolveUsersForSync();
+
+        return response()->json([
+            'users' => $users,
+        ]);
+    }
+
     public function receiveSyncMessage(Request $request)
     {
+        $this->authorizeSyncRequest($request);
+
         $data = $request->validate([
             'central_id' => 'required|integer',
             'message' => 'required|string',
@@ -303,11 +332,13 @@ class DebugNotaryController extends Controller
 
         $bug = RecordedBug::where('central_id', $data['central_id'])->firstOrFail();
 
+        $userName = $data['user_name'] ?? null;
+
         $bug->messages()->create([
             'user_id' => null, // Fra central
-            'message' => ($data['user_name'] ? $data['user_name'].': ' : '').$data['message'],
-            'attachment_path' => $data['attachment_path'],
-            'attachment_type' => $data['attachment_type'],
+            'message' => ($userName ? $userName.': ' : '').$data['message'],
+            'attachment_path' => $data['attachment_path'] ?? null,
+            'attachment_type' => $data['attachment_type'] ?? null,
         ]);
 
         return response()->json(['success' => true]);
@@ -315,10 +346,15 @@ class DebugNotaryController extends Controller
 
     public function receiveSyncBug(Request $request)
     {
+        $this->authorizeSyncRequest($request);
+
         $data = $request->validate([
             'central_id' => 'required|integer',
             'status' => 'nullable|string',
             'assigned_to_email' => 'nullable|string',
+            'assigned_to_name' => 'nullable|string',
+            'assigned_to_type' => 'nullable|string',
+            'external_user_id' => 'nullable|string',
         ]);
 
         $bug = RecordedBug::where('central_id', $data['central_id'])->firstOrFail();
@@ -329,8 +365,17 @@ class DebugNotaryController extends Controller
 
         if (array_key_exists('assigned_to_email', $data)) {
             if ($data['assigned_to_email']) {
-                $userModel = config('auth.providers.users.model');
-                $user = $userModel::where('email', $data['assigned_to_email'])->first();
+                $userModel = config('debug-notary.user_model')
+                    ?: config('auth.providers.users.model')
+                    ?: User::class;
+
+                $user = null;
+                if (! empty($data['external_user_id']) && class_exists($userModel)) {
+                    $user = $userModel::find($data['external_user_id']);
+                }
+                if (! $user && ! empty($data['assigned_to_email']) && class_exists($userModel)) {
+                    $user = $userModel::where('email', $data['assigned_to_email'])->first();
+                }
                 $bug->assigned_to_id = $user ? $user->id : null;
             } else {
                 $bug->assigned_to_id = null;

@@ -2,11 +2,14 @@
 
 namespace Dennisbusk\DebugNotary;
 
+use App\Models\User;
 use Dennisbusk\DebugNotary\Http\Controllers\DebugNotaryController;
 use Dennisbusk\DebugNotary\Jobs\NotifyBugJob;
 use Dennisbusk\DebugNotary\Mail\BugRecordedMail;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Dennisbusk\DebugNotary\Models\RecordedBugMessage;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http as LaravelHttp;
@@ -27,11 +30,24 @@ class DebugNotary
     public static $userContextResolver = null;
 
     /**
+     * Custom users resolver for sync.
+     */
+    public static $usersResolver = null;
+
+    /**
      * Set a custom user context resolver.
      */
     public static function resolveUserContextUsing(callable $callback): void
     {
         static::$userContextResolver = $callback;
+    }
+
+    /**
+     * Set a custom users resolver for syncing users with DebugCentral.
+     */
+    public static function resolveUsersUsing(callable $callback): void
+    {
+        static::$usersResolver = $callback;
     }
 
     /**
@@ -75,10 +91,14 @@ class DebugNotary
     public static function syncRoutes(): void
     {
         $prefix = config('debug-notary.route_prefix', 'laravel-debug-notary');
-        Route::middleware('api')->prefix($prefix.'/sync')->group(function () {
-            Route::post('/messages', [DebugNotaryController::class, 'receiveSyncMessage']);
-            Route::patch('/bugs', [DebugNotaryController::class, 'receiveSyncBug']);
-        });
+        Route::withoutMiddleware([ValidateCsrfToken::class, VerifyCsrfToken::class, 'web'])
+            ->middleware('api')
+            ->prefix($prefix.'/sync')
+            ->group(function () {
+                Route::get('/users', [DebugNotaryController::class, 'getSyncUsers']);
+                Route::post('/messages', [DebugNotaryController::class, 'receiveSyncMessage']);
+                Route::patch('/bugs', [DebugNotaryController::class, 'receiveSyncBug']);
+            });
     }
 
     /**
@@ -289,13 +309,101 @@ class DebugNotary
         $updateUrl = rtrim($baseUrl, '/')."/logs/{$bug->central_id}";
 
         try {
+            $assignedUser = $bug->assignedTo;
+
             LaravelHttp::withToken($apiKey)
                 ->patch($updateUrl, [
                     'status' => $bug->status instanceof \UnitEnum ? $bug->status->value : $bug->status,
-                    'assigned_to_email' => $bug->assignedTo->email ?? null,
+                    'assigned_to_email' => $assignedUser?->email,
+                    'assigned_to_name' => $assignedUser?->name,
+                    'assigned_to_type' => 'site',
+                    'external_user_id' => $assignedUser ? (string) $assignedUser->getKey() : null,
                 ]);
         } catch (\Exception $e) {
             Log::error('DebugNotary Central Bug Update Sync Error: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve users for synchronization with DebugCentral.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function resolveUsersForSync(): array
+    {
+        if (static::$usersResolver) {
+            return call_user_func(static::$usersResolver);
+        }
+
+        $userModel = config('debug-notary.user_model')
+            ?: config('auth.providers.users.model')
+            ?: User::class;
+
+        if (! class_exists($userModel)) {
+            return [];
+        }
+
+        return $userModel::all()->map(function ($user) {
+            $role = null;
+            if (isset($user->role)) {
+                $role = (string) $user->role;
+            } elseif (isset($user->user_role)) {
+                $role = (string) $user->user_role;
+            } elseif (method_exists($user, 'getRoleNames')) {
+                $role = (string) $user->getRoleNames()->first();
+            } elseif (method_exists($user, 'roles') && $user->relationLoaded('roles')) {
+                $role = $user->roles->first()?->name;
+            }
+
+            return [
+                'id' => (string) $user->getKey(),
+                'name' => (string) ($user->name ?? $user->email ?? "User #{$user->getKey()}"),
+                'email' => (string) ($user->email ?? ''),
+                'role' => $role,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * Push application users to DebugCentral.
+     *
+     * @param  array<int, array<string, mixed>>|null  $users
+     */
+    public function syncUsersToCentral(?array $users = null): int
+    {
+        if (! config('debug-notary.central.enabled', false)) {
+            throw new \RuntimeException('DebugCentral integration is not enabled in debug-notary config.');
+        }
+
+        $url = config('debug-notary.central.api_url');
+        $apiKey = config('debug-notary.central.api_key');
+
+        if (! $url || ! $apiKey) {
+            throw new \RuntimeException('DebugCentral API URL or API Key is missing in debug-notary config.');
+        }
+
+        $users = $users ?? $this->resolveUsersForSync();
+
+        $baseUrl = str_replace('/logs', '', $url);
+        $syncUrl = rtrim($baseUrl, '/').'/sites/users';
+
+        try {
+            $response = LaravelHttp::withToken($apiKey)
+                ->acceptJson()
+                ->timeout(15)
+                ->post($syncUrl, [
+                    'users' => $users,
+                ]);
+
+            if (! $response->successful()) {
+                Log::error('DebugNotary Sync Users to Central Error: HTTP '.$response->status().' '.$response->body());
+                throw new \RuntimeException('Failed to sync users to DebugCentral: HTTP '.$response->status());
+            }
+
+            return (int) ($response->json('count') ?? count($users));
+        } catch (\Exception $e) {
+            Log::error('DebugNotary Central Sync Users Error: '.$e->getMessage());
+            throw $e;
         }
     }
 

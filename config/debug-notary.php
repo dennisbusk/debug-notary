@@ -4,6 +4,17 @@ return [
     'enabled' => env('DEBUG_NOTARY_ENABLED', true),
 
     /*
+     * API Nøgle / Token til validering af synkroniseringsanmodninger fra DebugCentral.
+     */
+    'api_key' => env('DEBUG_NOTARY_API_KEY'),
+
+    /*
+     * Bruger-model der skal anvendes til udtræk og tilknytning af brugere.
+     * Hvis null, anvendes standard auth provider modellen (\App\Models\User::class).
+     */
+    'user_model' => env('DEBUG_NOTARY_USER_MODEL', null),
+
+    /*
      * Rute præfiks for Debug Notary oversigten og API.
      */
     'route_prefix' => env('DEBUG_NOTARY_PREFIX', 'laravel-debug-notary'),
