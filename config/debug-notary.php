@@ -170,4 +170,13 @@ return [
         'api_key' => env('DEBUG_NOTARY_API_KEY'),
         'verify_ssl' => env('DEBUG_NOTARY_CENTRAL_VERIFY_SSL', null),
     ],
+
+    /*
+     * Laravel Nova Integration
+     */
+    'nova' => [
+        'enabled' => env('DEBUG_NOTARY_NOVA_ENABLED', true),
+        'register_resource' => env('DEBUG_NOTARY_NOVA_RESOURCE', true),
+        'group' => env('DEBUG_NOTARY_NOVA_GROUP', 'System'),
+    ],
 ];

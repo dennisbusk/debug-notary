@@ -16,6 +16,12 @@
                 tailwind.config = {
                     darkMode: 'class',
                 }
+                if ((window.parent && window.parent !== window && window.parent.document.documentElement.classList.contains('dark')) ||
+                    localStorage.getItem('nova.theme') === 'dark' ||
+                    localStorage.getItem('theme') === 'dark' ||
+                    (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
             </script>
             @livewireStyles
         </head>
