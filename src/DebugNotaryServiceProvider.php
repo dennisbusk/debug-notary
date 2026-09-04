@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary;
 
+use Dennisbusk\DebugNotary\Console\SyncUsersCommand;
 use Dennisbusk\DebugNotary\Console\TestNotaryCommand;
 use Dennisbusk\DebugNotary\Http\Livewire\BugBulkActions;
 use Dennisbusk\DebugNotary\Http\Livewire\BugDetail;
@@ -43,6 +44,7 @@ class DebugNotaryServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 TestNotaryCommand::class,
+                SyncUsersCommand::class,
             ]);
 
             $this->publishes([

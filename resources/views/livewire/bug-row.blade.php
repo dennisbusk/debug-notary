@@ -1,8 +1,8 @@
 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition duration-150 ease-in-out">
     <td class="px-6 py-4 whitespace-nowrap">
         <input type="checkbox"
-               wire:model.live="$parent.selected"
-               value="{{ $bug->id }}"
+               wire:click="toggleSelect"
+               {{ $selected ? 'checked' : '' }}
                class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
     </td>
 
@@ -24,6 +24,28 @@
                     </option>
                 @endforeach
             </select>
+        </td>
+    @endif
+
+    @if($columns['estimate'] ?? true)
+        <td class="px-6 py-4 whitespace-nowrap text-sm">
+            @if($bug->formattedEstimate())
+                <div class="flex flex-col">
+                    <span class="font-medium text-gray-900 dark:text-white">{{ $bug->formattedEstimate() }}</span>
+                    @if($bug->isEstimateAccepted())
+                        <span class="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-0.5">
+                            <svg class="w-3 h-3 text-green-500 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            {{ __('debug-notary::messages.estimate_accepted') }}
+                        </span>
+                    @else
+                        <span class="text-[10px] text-amber-500 dark:text-amber-400 font-medium">
+                            {{ __('debug-notary::messages.estimate_pending') }}
+                        </span>
+                    @endif
+                </div>
+            @else
+                <span class="text-gray-400 dark:text-gray-500 text-xs">—</span>
+            @endif
         </td>
     @endif
 

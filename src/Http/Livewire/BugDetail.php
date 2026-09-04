@@ -2,6 +2,8 @@
 
 namespace Dennisbusk\DebugNotary\Http\Livewire;
 
+use App\Models\User;
+use Dennisbusk\DebugNotary\Facades\DebugNotary as DebugNotaryFacade;
 use Dennisbusk\DebugNotary\Jobs\NotifyBugActivityJob;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Livewire\Component;
@@ -12,6 +14,10 @@ class BugDetail extends Component
     use WithFileUploads;
 
     public RecordedBug $bug;
+
+    public ?int $estimateHours = null;
+
+    public ?int $estimateMinutes = null;
 
     public $newMessage = '';
 
@@ -25,7 +31,9 @@ class BugDetail extends Component
 
     public function mount($bugId)
     {
-        $this->bug = RecordedBug::with(['user', 'messages.user', 'assignedTo'])->findOrFail($bugId);
+        $this->bug = RecordedBug::with(['user', 'messages.user', 'assignedTo', 'estimateAcceptedBy'])->findOrFail($bugId);
+        $this->estimateHours = $this->bug->estimate_hours;
+        $this->estimateMinutes = $this->bug->estimate_minutes;
         $this->markMessagesAsRead();
     }
 
@@ -39,7 +47,7 @@ class BugDetail extends Component
         $attachmentType = null;
 
         if ($this->attachment) {
-            $attachmentPath = $this->attachment->store('debug-notary/attachments', 'public');
+            $attachmentPath = $this->attachment->store('debug-notary/attachments', 'local');
             $attachmentType = $this->attachment->getClientOriginalExtension();
         }
 
@@ -49,6 +57,9 @@ class BugDetail extends Component
             'attachment_path' => $attachmentPath,
             'attachment_type' => $attachmentType,
         ]);
+
+        // Synkroniser til Central
+        DebugNotaryFacade::syncMessageToCentral($this->bug, $message);
 
         // Send notifikation
         NotifyBugActivityJob::dispatch(
@@ -96,6 +107,9 @@ class BugDetail extends Component
             $this->bug->refresh();
             $newStatus = $this->bug->status;
 
+            // Synkroniser til Central
+            DebugNotaryFacade::syncBugUpdateToCentral($this->bug);
+
             // Log historik
             $this->bug->messages()->create([
                 'user_id' => null, // System besked
@@ -107,7 +121,11 @@ class BugDetail extends Component
             ]);
 
             $this->bug->load('messages.user');
-            $this->dispatch('statusUpdated');
+            if (method_exists($this, 'dispatch')) {
+                $this->dispatch('statusUpdated');
+            } elseif (method_exists($this, 'emit')) {
+                $this->emit('statusUpdated');
+            }
         }
     }
 
@@ -120,7 +138,10 @@ class BugDetail extends Component
             }
 
             $this->bug->update(['assigned_to_id' => $userId ?: null]);
-            $this->bug->load('assignedTo');
+            $this->bug->load(['assignedTo', 'messages.user']);
+
+            // Synkroniser til Central
+            DebugNotaryFacade::syncBugUpdateToCentral($this->bug);
 
             $assigneeName = $this->bug->assignedTo->name ?? __('debug-notary::messages.nobody');
 
@@ -148,11 +169,122 @@ class BugDetail extends Component
         }
     }
 
+    public function updateEstimate()
+    {
+        if ($this->bug->isEstimateAccepted()) {
+            session()->flash('error', __('debug-notary::messages.estimate_locked_error'));
+
+            return;
+        }
+
+        $this->validate([
+            'estimateHours' => 'nullable|integer|min:0',
+            'estimateMinutes' => 'nullable|integer|min:0|max:59',
+        ]);
+
+        $newHours = $this->estimateHours !== '' && $this->estimateHours !== null ? (int) $this->estimateHours : null;
+        $newMinutes = $this->estimateMinutes !== '' && $this->estimateMinutes !== null ? (int) $this->estimateMinutes : null;
+
+        if ($newHours === 0 && $newMinutes === 0) {
+            $newHours = null;
+            $newMinutes = null;
+            $this->estimateHours = null;
+            $this->estimateMinutes = null;
+        }
+
+        if ($newHours !== $this->bug->estimate_hours || $newMinutes !== $this->bug->estimate_minutes) {
+            $this->bug->update([
+                'estimate_hours' => $newHours,
+                'estimate_minutes' => $newMinutes,
+            ]);
+
+            $this->bug->refresh();
+
+            // Synkroniser til Central
+            DebugNotaryFacade::syncBugUpdateToCentral($this->bug);
+
+            $userName = auth()->user()?->name ?? 'System';
+            $formatted = $this->bug->formattedEstimate();
+
+            if ($formatted) {
+                $this->bug->messages()->create([
+                    'user_id' => null, // System besked
+                    'message' => __('debug-notary::messages.history_estimate_set', [
+                        'estimate' => $formatted,
+                        'user' => $userName,
+                    ]),
+                ]);
+            } else {
+                $this->bug->messages()->create([
+                    'user_id' => null, // System besked
+                    'message' => __('debug-notary::messages.history_estimate_removed', [
+                        'user' => $userName,
+                    ]),
+                ]);
+            }
+
+            $this->bug->load('messages.user');
+            if (method_exists($this, 'dispatch')) {
+                $this->dispatch('estimateUpdated');
+            } elseif (method_exists($this, 'emit')) {
+                $this->emit('estimateUpdated');
+            }
+        }
+    }
+
+    public function acceptEstimate()
+    {
+        if ($this->bug->isEstimateAccepted()) {
+            return;
+        }
+
+        if ($this->bug->estimate_hours === null && $this->bug->estimate_minutes === null) {
+            return;
+        }
+
+        $acceptedAt = now();
+        $user = auth()->user();
+
+        $this->bug->update([
+            'estimate_accepted_at' => $acceptedAt,
+            'estimate_accepted_by_id' => $user?->id,
+            'estimate_accepted_by_name' => $user?->name ?? 'Ukendt',
+        ]);
+
+        $this->bug->refresh();
+
+        // Synkroniser til Central
+        DebugNotaryFacade::syncBugUpdateToCentral($this->bug);
+
+        $formatted = $this->bug->formattedEstimate() ?: '0 timer 0 minutter';
+        $dateStr = $acceptedAt->format('d/m/Y H:i');
+        $userName = $user?->name ?? 'Ukendt';
+
+        // Log historik
+        $this->bug->messages()->create([
+            'user_id' => null, // System besked
+            'message' => __('debug-notary::messages.history_estimate_accepted', [
+                'estimate' => $formatted,
+                'user' => $userName,
+                'time' => $dateStr,
+            ]),
+        ]);
+
+        $this->bug->load(['estimateAcceptedBy', 'messages.user']);
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('estimateAccepted');
+        } elseif (method_exists($this, 'emit')) {
+            $this->emit('estimateAccepted');
+        }
+    }
+
     public function getUsersProperty()
     {
-        $userModel = config('auth.providers.users.model');
+        $userModel = config('debug-notary.user_model')
+            ?: config('auth.providers.users.model')
+            ?: User::class;
 
-        return $userModel::all();
+        return class_exists($userModel) ? $userModel::all() : collect();
     }
 
     public function render()

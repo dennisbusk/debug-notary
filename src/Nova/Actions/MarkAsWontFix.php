@@ -11,15 +11,14 @@ use Laravel\Nova\Actions\ActionResponse;
 use Laravel\Nova\Fields\ActionFields;
 use Laravel\Nova\Http\Requests\NovaRequest;
 
-class MarkAsWontFix extends Action
-{
+class MarkAsWontFix extends Action {
+
     use InteractsWithQueue, Queueable;
 
     public $name = 'Mark as Won\'t Fix';
 
-    public function handle(ActionFields $fields, Collection $models): ActionResponse
-    {
-        foreach ($models as $model) {
+    public function handle( ActionFields $fields, Collection $models ): ActionResponse {
+        foreach ( $models as $model ) {
             $model->update([
                 'status' => BugStatus::WONT_FIX->value,
             ]);
@@ -28,8 +27,7 @@ class MarkAsWontFix extends Action
         return ActionResponse::message(__('debug-notary::messages.status_updated'));
     }
 
-    public function fields(NovaRequest $request): array
-    {
+    public function fields( NovaRequest $request ): array {
         return [];
     }
 }

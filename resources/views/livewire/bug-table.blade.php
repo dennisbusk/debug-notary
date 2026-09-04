@@ -1,3 +1,6 @@
+@php
+    $liveModel = class_exists(\Livewire\Attributes\Url::class) ? 'wire:model.live' : 'wire:model';
+@endphp
 <div class="mx-auto px-4 py-8">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-6">
         <div>
@@ -18,12 +21,12 @@
                     </svg>
                 </div>
                 <input type="text"
-                       wire:model.live.debounce.300ms="search"
+                       {{ $liveModel }}.debounce.300ms="search"
                        placeholder="{{ __('debug-notary::messages.search_placeholder') }}"
                        class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out">
             </div>
 
-            <select wire:model.live="status"
+            <select {{ $liveModel }}="status"
                     class="block pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-white dark:bg-gray-700 dark:text-white">
                 <option value="">{{ __('debug-notary::messages.all_statuses') }}</option>
                 @foreach($statuses as $s)
@@ -31,7 +34,7 @@
                 @endforeach
             </select>
 
-            <select wire:model.live="logType"
+            <select {{ $liveModel }}="logType"
                     class="block pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-white dark:bg-gray-700 dark:text-white">
                 <option value="">{{ __('debug-notary::messages.all_types') }}</option>
                 <option value="system">{{ __('debug-notary::messages.system') }}</option>
@@ -39,7 +42,7 @@
                 <option value="javascript">{{ __('debug-notary::messages.javascript') }}</option>
             </select>
 
-            <select wire:model.live="severity"
+            <select {{ $liveModel }}="severity"
                     class="block pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-white dark:bg-gray-700 dark:text-white">
                 <option value="">{{ __('debug-notary::messages.all_severities') }}</option>
                 @foreach($severities as $sev)
@@ -47,7 +50,7 @@
                 @endforeach
             </select>
 
-            <select wire:model.live="tag"
+            <select {{ $liveModel }}="tag"
                     class="block pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg bg-white dark:bg-gray-700 dark:text-white">
                 <option value="">{{ __('debug-notary::messages.all_tags') }}</option>
                 @foreach($allTags as $t)
@@ -141,7 +144,7 @@
             <tr>
                 <th class="px-6 py-4 text-left">
                     <input type="checkbox"
-                           wire:model.live="selectAll"
+                           {{ $liveModel }}="selectAll"
                            wire:click="toggleSelectAllPage"
                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
                 </th>
@@ -150,6 +153,9 @@
                 @endif
                 @if($columns['status'] ?? true)
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.status') }}</th>
+                @endif
+                @if($columns['estimate'] ?? true)
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.estimate') }}</th>
                 @endif
                 @if($columns['trend'] ?? true)
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('debug-notary::messages.trend') }}</th>

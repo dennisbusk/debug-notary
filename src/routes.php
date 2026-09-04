@@ -12,4 +12,11 @@ Route::group(['middleware' => 'web'], function () {
     Route::patch($prefix.'/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
     Route::delete($prefix.'/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
     Route::post($prefix.'/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
+    Route::get($prefix.'/{bug}/messages/{message}/attachment', [DebugNotaryController::class, 'messageAttachment'])->name('debug-notary.messages.attachment');
+});
+
+Route::middleware('api')->prefix(config('debug-notary.route_prefix', 'laravel-debug-notary').'/sync')->group(function () {
+    Route::get('/users', [DebugNotaryController::class, 'getSyncUsers']);
+    Route::post('/messages', [DebugNotaryController::class, 'receiveSyncMessage']);
+    Route::patch('/bugs', [DebugNotaryController::class, 'receiveSyncBug']);
 });
