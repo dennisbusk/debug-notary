@@ -2,14 +2,13 @@
 
 namespace Dennisbusk\DebugNotary\Http\Livewire;
 
-use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Jobs\NotifyBugActivityJob;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
-class BugDetail extends Component {
-
+class BugDetail extends Component
+{
     use WithFileUploads;
 
     public RecordedBug $bug;
@@ -24,27 +23,29 @@ class BugDetail extends Component {
             'attachment' => 'nullable|file|max:10240', // 10MB
         ];
 
-    public function mount( $bugId ) {
-        $this->bug = RecordedBug::with([ 'user', 'messages.user', 'assignedTo' ])->findOrFail($bugId);
+    public function mount($bugId)
+    {
+        $this->bug = RecordedBug::with(['user', 'messages.user', 'assignedTo'])->findOrFail($bugId);
         $this->markMessagesAsRead();
     }
 
-    public function sendMessage() {
-        if ( empty(trim($this->newMessage)) && !$this->attachment ) {
+    public function sendMessage()
+    {
+        if (empty(trim($this->newMessage)) && ! $this->attachment) {
             return;
         }
 
         $attachmentPath = null;
         $attachmentType = null;
 
-        if ( $this->attachment ) {
+        if ($this->attachment) {
             $attachmentPath = $this->attachment->store('debug-notary/attachments', 'public');
             $attachmentType = $this->attachment->getClientOriginalExtension();
         }
 
         $message = $this->bug->messages()->create([
-            'user_id'         => auth()->id(),
-            'message'         => $this->newMessage ?? '',
+            'user_id' => auth()->id(),
+            'message' => $this->newMessage ?? '',
             'attachment_path' => $attachmentPath,
             'attachment_type' => $attachmentType,
         ]);
@@ -54,8 +55,8 @@ class BugDetail extends Component {
             $this->bug,
             'new_message',
             [
-                'sender'  => auth()->user()->name ?? 'System',
-                'message' => $this->newMessage ?: ( $this->attachment ? 'Vedhæftet fil' : '' ),
+                'sender' => auth()->user()->name ?? 'System',
+                'message' => $this->newMessage ?: ($this->attachment ? 'Vedhæftet fil' : ''),
             ]
         );
 
@@ -64,18 +65,20 @@ class BugDetail extends Component {
         $this->bug->load('messages.user');
     }
 
-    public function markMessagesAsRead() {
+    public function markMessagesAsRead()
+    {
         // Marker beskeder fra andre som læst når man åbner siden
-        if ( auth()->check() ) {
+        if (auth()->check()) {
             $this->bug->messages()
-                      ->where('user_id', '!=', auth()->id())
-                      ->where('is_read', false)
-                      ->update([ 'is_read' => true ]);
+                ->where('user_id', '!=', auth()->id())
+                ->where('is_read', false)
+                ->update(['is_read' => true]);
         }
     }
 
-    public function deleteBug() {
-        if ( $this->bug ) {
+    public function deleteBug()
+    {
+        if ($this->bug) {
             $this->bug->delete();
             session()->flash('message', __('debug-notary::messages.bug_deleted'));
 
@@ -83,10 +86,11 @@ class BugDetail extends Component {
         }
     }
 
-    public function updateStatus( $status ) {
-        if ( $this->bug && $this->bug->status->value !== $status ) {
+    public function updateStatus($status)
+    {
+        if ($this->bug && $this->bug->status->value !== $status) {
             $oldStatus = $this->bug->status;
-            $this->bug->update([ 'status' => $status ]);
+            $this->bug->update(['status' => $status]);
 
             // For at få det nye status objekt med labels
             $this->bug->refresh();
@@ -96,8 +100,8 @@ class BugDetail extends Component {
             $this->bug->messages()->create([
                 'user_id' => null, // System besked
                 'message' => __('debug-notary::messages.history_status_changed', [
-                    'old'  => $oldStatus->label(),
-                    'new'  => $newStatus->label(),
+                    'old' => $oldStatus->label(),
+                    'new' => $newStatus->label(),
                     'user' => auth()->user()->name ?? 'System',
                 ]),
             ]);
@@ -107,14 +111,15 @@ class BugDetail extends Component {
         }
     }
 
-    public function updateAssignee( $userId ) {
-        if ( $this->bug ) {
+    public function updateAssignee($userId)
+    {
+        if ($this->bug) {
             $oldAssigneeId = $this->bug->assigned_to_id;
-            if ( $oldAssigneeId == $userId ) {
+            if ($oldAssigneeId == $userId) {
                 return;
             }
 
-            $this->bug->update([ 'assigned_to_id' => $userId ?: null ]);
+            $this->bug->update(['assigned_to_id' => $userId ?: null]);
             $this->bug->load('assignedTo');
 
             $assigneeName = $this->bug->assignedTo->name ?? __('debug-notary::messages.nobody');
@@ -129,7 +134,7 @@ class BugDetail extends Component {
             ]);
 
             // Send notifikation
-            if ( $userId ) {
+            if ($userId) {
                 NotifyBugActivityJob::dispatch(
                     $this->bug,
                     'assigned',
@@ -143,13 +148,15 @@ class BugDetail extends Component {
         }
     }
 
-    public function getUsersProperty() {
+    public function getUsersProperty()
+    {
         $userModel = config('auth.providers.users.model');
 
         return $userModel::all();
     }
 
-    public function render() {
+    public function render()
+    {
         return view('debug-notary::livewire.bug-detail');
     }
 }

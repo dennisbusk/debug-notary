@@ -97,5 +97,15 @@ class DebugNotaryServiceProvider extends ServiceProvider
             Livewire::component('bug-detail', BugDetail::class);
             Livewire::component('notary-bulk-actions', BugBulkActions::class);
         }
+
+        if (class_exists(\Laravel\Nova\Nova::class) && config('debug-notary.nova.enabled', true)) {
+            \Laravel\Nova\Nova::serving(function () {
+                if (config('debug-notary.nova.register_resource', true)) {
+                    \Laravel\Nova\Nova::resources([
+                        Nova\Resources\RecordedBug::class,
+                    ]);
+                }
+            });
+        }
     }
 }
