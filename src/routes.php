@@ -3,20 +3,18 @@
 use Dennisbusk\DebugNotary\Http\Controllers\DebugNotaryController;
 use Illuminate\Support\Facades\Route;
 
-Route::group(['middleware' => 'web'], function () {
-    $prefix = config('debug-notary.route_prefix', 'laravel-debug-notary');
+$prefix = config('debug-notary.route_prefix', 'laravel-debug-notary');
+$reportingMiddleware = config('debug-notary.reporting_middleware', ['web']);
+$dashboardMiddleware = config('debug-notary.middleware', ['web', 'auth']);
 
-    Route::get($prefix, [DebugNotaryController::class, 'index'])->name('debug-notary.index');
+Route::group(['middleware' => $reportingMiddleware], function () use ($prefix) {
     Route::post($prefix.'/store', [DebugNotaryController::class, 'storeNotary'])->name('debug-notary.store');
+});
+
+Route::group(['middleware' => $dashboardMiddleware], function () use ($prefix) {
+    Route::get($prefix, [DebugNotaryController::class, 'index'])->name('debug-notary.index');
     Route::get($prefix.'/{id}', [DebugNotaryController::class, 'show'])->name('debug-notary.show');
     Route::patch($prefix.'/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
     Route::delete($prefix.'/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
     Route::post($prefix.'/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
-    Route::get($prefix.'/{bug}/messages/{message}/attachment', [DebugNotaryController::class, 'messageAttachment'])->name('debug-notary.messages.attachment');
-});
-
-Route::middleware('api')->prefix(config('debug-notary.route_prefix', 'laravel-debug-notary').'/sync')->group(function () {
-    Route::get('/users', [DebugNotaryController::class, 'getSyncUsers']);
-    Route::post('/messages', [DebugNotaryController::class, 'receiveSyncMessage']);
-    Route::patch('/bugs', [DebugNotaryController::class, 'receiveSyncBug']);
 });

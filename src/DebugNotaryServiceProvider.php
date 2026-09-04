@@ -2,7 +2,6 @@
 
 namespace Dennisbusk\DebugNotary;
 
-use Dennisbusk\DebugNotary\Console\SyncUsersCommand;
 use Dennisbusk\DebugNotary\Console\TestNotaryCommand;
 use Dennisbusk\DebugNotary\Http\Livewire\BugBulkActions;
 use Dennisbusk\DebugNotary\Http\Livewire\BugDetail;
@@ -14,7 +13,6 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Foundation\AliasLoader;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
@@ -44,7 +42,6 @@ class DebugNotaryServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 TestNotaryCommand::class,
-                SyncUsersCommand::class,
             ]);
 
             $this->publishes([
@@ -77,17 +74,11 @@ class DebugNotaryServiceProvider extends ServiceProvider
             $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'debug-notary');
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
-            $this->app->booted(function () {
-                if (config('debug-notary.register_routes', true)
-                    &&
-                    ! DebugNotary::$routesRegistered
-                    &&
-                    ! Route::has('debug-notary.index')
-                    &&
-                    ! $this->app->routesAreCached()) {
-                    $this->loadRoutesFrom(__DIR__.'/routes.php');
-                }
-            });
+            if (config('debug-notary.register_routes', true)
+                && ! DebugNotary::$routesRegistered
+                && ! $this->app->routesAreCached()) {
+                $this->loadRoutesFrom(__DIR__.'/routes.php');
+            }
 
             if (config('debug-notary.enabled')) {
                 $this->app->make(Kernel::class)
