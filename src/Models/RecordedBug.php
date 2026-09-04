@@ -62,10 +62,16 @@ class RecordedBug extends Model
             'browser_data',
             'user_note',
             'tags',
+            'estimate_hours',
+            'estimate_minutes',
+            'estimate_accepted_at',
+            'estimate_accepted_by_id',
+            'estimate_accepted_by_name',
             'user_id',
             'assigned_to_id',
             'user_role',
             'tenant_id',
+            'central_id',
             'last_seen_at',
         ];
 
@@ -79,6 +85,11 @@ class RecordedBug extends Model
             'tags' => 'json',
             'user_id' => 'integer',
             'assigned_to_id' => 'integer',
+            'estimate_hours' => 'integer',
+            'estimate_minutes' => 'integer',
+            'estimate_accepted_at' => 'datetime',
+            'estimate_accepted_by_id' => 'integer',
+            'central_id' => 'integer',
             'status' => BugStatus::class,
         ];
 
@@ -92,6 +103,56 @@ class RecordedBug extends Model
         $userModel = config('auth.providers.users.model');
 
         return $this->belongsTo($userModel, 'assigned_to_id');
+    }
+
+    public function estimateAcceptedBy()
+    {
+        $userModel = config('auth.providers.users.model');
+
+        return $this->belongsTo($userModel, 'estimate_accepted_by_id');
+    }
+
+    public function isEstimateAccepted(): bool
+    {
+        return ! is_null($this->estimate_accepted_at);
+    }
+
+    public function estimateAcceptedByName(): ?string
+    {
+        return $this->estimateAcceptedBy?->name ?? $this->estimate_accepted_by_name;
+    }
+
+    public function formattedEstimate(): ?string
+    {
+        if ($this->estimate_hours === null && $this->estimate_minutes === null) {
+            return null;
+        }
+
+        $hours = (int) ($this->estimate_hours ?? 0);
+        $minutes = (int) ($this->estimate_minutes ?? 0);
+
+        if ($hours === 0 && $minutes === 0) {
+            return null;
+        }
+
+        $parts = [];
+        if ($hours > 0) {
+            $parts[] = $hours === 1 ? '1 time' : "{$hours} timer";
+        }
+        if ($minutes > 0) {
+            $parts[] = $minutes === 1 ? '1 minut' : "{$minutes} minutter";
+        }
+
+        return implode(' ', $parts);
+    }
+
+    public function totalEstimateMinutes(): ?int
+    {
+        if ($this->estimate_hours === null && $this->estimate_minutes === null) {
+            return null;
+        }
+
+        return ((int) ($this->estimate_hours ?? 0) * 60) + (int) ($this->estimate_minutes ?? 0);
     }
 
     public function user()

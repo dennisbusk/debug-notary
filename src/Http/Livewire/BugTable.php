@@ -7,6 +7,7 @@ use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -14,23 +15,20 @@ class BugTable extends Component
 {
     use WithPagination;
 
+    #[Url(history: true)]
     public $search = '';
 
+    #[Url(history: true)]
     public $tag = '';
 
+    #[Url(history: true)]
     public $severity = '';
 
+    #[Url(history: true)]
     public $logType = '';
 
+    #[Url(history: true)]
     public $status = '';
-
-    protected $queryString = [
-        'search' => ['except' => ''],
-        'tag' => ['except' => ''],
-        'severity' => ['except' => ''],
-        'logType' => ['except' => ''],
-        'status' => ['except' => ''],
-    ];
 
     public array $selected = [];
 
