@@ -1,8 +1,8 @@
 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition duration-150 ease-in-out">
     <td class="px-6 py-4 whitespace-nowrap">
         <input type="checkbox"
-               wire:model.live="$parent.selected"
-               value="{{ $bug->id }}"
+               wire:click="toggleSelect"
+               {{ $selected ? 'checked' : '' }}
                class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
     </td>
 

@@ -7,7 +7,6 @@ use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -15,20 +14,23 @@ class BugTable extends Component
 {
     use WithPagination;
 
-    #[Url(history: true)]
     public $search = '';
 
-    #[Url(history: true)]
     public $tag = '';
 
-    #[Url(history: true)]
     public $severity = '';
 
-    #[Url(history: true)]
     public $logType = '';
 
-    #[Url(history: true)]
     public $status = '';
+
+    protected $queryString = [
+        'search' => ['except' => ''],
+        'tag' => ['except' => ''],
+        'severity' => ['except' => ''],
+        'logType' => ['except' => ''],
+        'status' => ['except' => ''],
+    ];
 
     public array $selected = [];
 
@@ -41,7 +43,21 @@ class BugTable extends Component
             'bugDeleted' => '$refresh',
             'statusUpdated' => '$refresh',
             'bugsDeleted' => 'onBugsDeleted',
+            'selectAllMatching' => 'selectAllMatching',
+            'clearSelection' => 'clearSelection',
+            'toggleSelect' => 'toggleSelect',
         ];
+
+    public function toggleSelect($bugId)
+    {
+        $bugId = (string) $bugId;
+        if (in_array($bugId, $this->selected)) {
+            $this->selected = array_values(array_diff($this->selected, [$bugId]));
+        } else {
+            $this->selected[] = $bugId;
+        }
+        $this->updatedSelected();
+    }
 
     public function onBugsDeleted()
     {
@@ -89,17 +105,46 @@ class BugTable extends Component
 
     protected function dispatchSelectionUpdated()
     {
-        $this->dispatch('selectionUpdated',
-            selected: $this->selected,
-            allMatchingSelected: $this->allMatchingSelected,
-            filters: [
-                'search' => $this->search,
-                'tag' => $this->tag,
-                'severity' => $this->severity,
-                'logType' => $this->logType,
-                'status' => $this->status,
-            ]
-        )->to(BugBulkActions::class);
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('selectionUpdated',
+                selected: $this->selected,
+                allMatchingSelected: $this->allMatchingSelected,
+                filters: [
+                    'search' => $this->search,
+                    'tag' => $this->tag,
+                    'severity' => $this->severity,
+                    'logType' => $this->logType,
+                    'status' => $this->status,
+                ]
+            )->to(BugBulkActions::class);
+        } elseif (method_exists($this, 'emitTo')) {
+            $this->emitTo(
+                BugBulkActions::class,
+                'selectionUpdated',
+                $this->selected,
+                $this->allMatchingSelected,
+                [
+                    'search' => $this->search,
+                    'tag' => $this->tag,
+                    'severity' => $this->severity,
+                    'logType' => $this->logType,
+                    'status' => $this->status,
+                ]
+            );
+        } else {
+            $this->emit(
+                'selectionUpdated',
+                $this->selected,
+                $this->allMatchingSelected,
+                [
+                    'search' => $this->search,
+                    'tag' => $this->tag,
+                    'severity' => $this->severity,
+                    'logType' => $this->logType,
+                    'status' => $this->status,
+                ]
+            );
+        }
     }
 
     public function resetFilters()

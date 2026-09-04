@@ -121,7 +121,11 @@ class BugDetail extends Component
             ]);
 
             $this->bug->load('messages.user');
-            $this->dispatch('statusUpdated');
+            if (method_exists($this, 'dispatch')) {
+                $this->dispatch('statusUpdated');
+            } elseif (method_exists($this, 'emit')) {
+                $this->emit('statusUpdated');
+            }
         }
     }
 
@@ -220,7 +224,11 @@ class BugDetail extends Component
             }
 
             $this->bug->load('messages.user');
-            $this->dispatch('estimateUpdated');
+            if (method_exists($this, 'dispatch')) {
+                $this->dispatch('estimateUpdated');
+            } elseif (method_exists($this, 'emit')) {
+                $this->emit('estimateUpdated');
+            }
         }
     }
 
@@ -263,7 +271,11 @@ class BugDetail extends Component
         ]);
 
         $this->bug->load(['estimateAcceptedBy', 'messages.user']);
-        $this->dispatch('estimateAccepted');
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('estimateAccepted');
+        } elseif (method_exists($this, 'emit')) {
+            $this->emit('estimateAccepted');
+        }
     }
 
     public function getUsersProperty()
