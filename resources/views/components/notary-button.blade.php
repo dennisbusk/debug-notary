@@ -52,54 +52,6 @@
                     this.logJsError(message, window.location.href, 0, 0, event.reason);
                 });
                 @endif
-
-                // Global report method for manual logging from JS
-                window.DebugNotary = {
-                    report: (message, options = {}) => {
-                        const event = new CustomEvent('debug-notary-report', {
-                            detail: { message, options }
-                        });
-                        document.dispatchEvent(event);
-                    }
-                };
-
-                document.addEventListener('debug-notary-report', (event) => {
-                    const { message, options } = event.detail;
-                    this.reportManual(message, options);
-                });
-            },
-
-            async reportManual(message, options = {}) {
-                const data = {
-                    message: message,
-                    log_type: 'manual',
-                    severity: options.severity || 'error',
-                    file: options.file || 'browser',
-                    line: options.line || 0,
-                    note: options.note || null,
-                    tags: options.tags || [],
-                    browser_data: {
-                        url: window.location.href,
-                        userAgent: navigator.userAgent,
-                        ...options.context
-                    },
-                    user_context: options.user_context || null
-                };
-
-                try {
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-                    fetch('{{ route('debug-notary.store') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify(data)
-                    });
-                } catch (e) {
-                    // Silent fail
-                }
             },
 
             async logJsError(message, file, line, col, error) {

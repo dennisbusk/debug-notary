@@ -73,7 +73,7 @@
                         {{ __('debug-notary::messages.copied') }}
                     </div>
 
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="space-y-1">
                             <span class="text-xs text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.severity') }}</span>
                             <div class="flex items-center">
@@ -97,26 +97,6 @@
                             <span class="text-xs text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.assigned_to') }}</span>
                             <div class="text-sm font-medium dark:text-gray-200">
                                 {{ $bug->assignedTo->name ?? __('debug-notary::messages.nobody') }}
-                            </div>
-                        </div>
-                        <div class="space-y-1">
-                            <span class="text-xs text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.estimate') }}</span>
-                            <div class="text-sm font-medium dark:text-gray-200 flex flex-col">
-                                @if($bug->formattedEstimate())
-                                    <span class="font-semibold">{{ $bug->formattedEstimate() }}</span>
-                                    @if($bug->isEstimateAccepted())
-                                        <span class="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-0.5" title="{{ __('debug-notary::messages.estimate_accepted_binding', ['name' => $bug->estimateAcceptedByName() ?? __('debug-notary::messages.nobody'), 'time' => $bug->estimate_accepted_at?->format('d/m/Y H:i')]) }}">
-                                            <svg class="w-3 h-3 text-green-500 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                            {{ __('debug-notary::messages.estimate_accepted') }}
-                                        </span>
-                                    @else
-                                        <span class="text-[10px] text-amber-500 dark:text-amber-400 font-medium">
-                                            {{ __('debug-notary::messages.estimate_pending') }}
-                                        </span>
-                                    @endif
-                                @else
-                                    <span class="text-gray-400 dark:text-gray-500 text-xs">{{ __('debug-notary::messages.estimate_not_set') }}</span>
-                                @endif
                             </div>
                         </div>
                         <div class="space-y-1">
@@ -217,45 +197,10 @@
                                 @endforeach
                             </select>
                         </div>
-
-                        <!-- Estimate Section -->
-                        <div class="flex flex-col gap-1.5">
-                            <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{{ __('debug-notary::messages.time_estimate') }}</span>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <div class="flex items-center gap-1">
-                                    <input type="number" min="0" wire:model="estimateHours" placeholder="0" {{ $bug->isEstimateAccepted() ? 'disabled' : '' }}
-                                           class="w-14 px-2 py-1 text-[11px] border rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-700 focus:ring-indigo-500 focus:border-indigo-500" />
-                                    <span class="text-xs text-gray-500 font-medium">{{ __('debug-notary::messages.hours') }}</span>
-                                    <input type="number" min="0" max="59" wire:model="estimateMinutes" placeholder="0" {{ $bug->isEstimateAccepted() ? 'disabled' : '' }}
-                                           class="w-14 px-2 py-1 text-[11px] border rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-700 focus:ring-indigo-500 focus:border-indigo-500" />
-                                    <span class="text-xs text-gray-500 font-medium">{{ __('debug-notary::messages.minutes') }}</span>
-                                </div>
-
-                                @if(! $bug->isEstimateAccepted())
-                                    <button type="button" wire:click="updateEstimate"
-                                            class="inline-flex items-center px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">
-                                        {{ __('debug-notary::messages.save_estimate') }}
-                                    </button>
-                                    @if($bug->formattedEstimate())
-                                        <button type="button" wire:click="acceptEstimate"
-                                                onclick="return confirm('{{ __('debug-notary::messages.confirm_accept_estimate', ['estimate' => $bug->formattedEstimate()]) }}') || event.stopImmediatePropagation()"
-                                                class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                            {{ __('debug-notary::messages.accept_estimate') }}
-                                        </button>
-                                    @endif
-                                @else
-                                    <div class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-[11px] text-green-700 dark:text-green-300 font-medium">
-                                        <svg class="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                        <span>{{ __('debug-notary::messages.estimate_accepted_by', ['name' => $bug->estimateAcceptedByName() ?? __('debug-notary::messages.nobody'), 'time' => $bug->estimate_accepted_at?->format('d/m/Y H:i')]) }}</span>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
                     </div>
 
                     <button wire:click="deleteBug"
-                            onclick="return confirm('{{ __('debug-notary::messages.confirm_delete_bug') }}') || event.stopImmediatePropagation()"
+                            wire:confirm="{{ __('debug-notary::messages.confirm_delete_bug') }}"
                             class="inline-flex items-center px-3 py-1.5 bg-red-600 text-white rounded-md text-xs font-bold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-150 shadow-sm self-end">
                         <svg class="mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -275,61 +220,69 @@
                     </h3>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-800" wire:poll.5s>
+                <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-800">
                     @forelse($bug->messages as $msg)
-                        <div class="flex flex-col {{ $msg->user_id && $msg->user_id === auth()->id() ? 'items-end' : 'items-start' }}">
-                            <div class="max-w-[85%] rounded-2xl px-4 py-2 {{ $msg->user_id && $msg->user_id === auth()->id() ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 dark:text-white rounded-tl-none shadow-sm' }}">
-                                @if($msg->message)
-                                    <div class="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/20">
-                                        {!! \Illuminate\Support\Str::markdown($msg->message) !!}
-                                    </div>
-                                @endif
+                        @if($msg->user_id === null)
+                            <!-- System Message -->
+                            <div class="flex justify-center my-2">
+                                <div class="px-4 py-1 bg-gray-100 dark:bg-gray-900/50 rounded-full border border-gray-200 dark:border-gray-700">
+                                    <span class="text-[10px] text-gray-500 italic">{{ $msg->message }}</span>
+                                </div>
+                            </div>
+                        @else
+                            <div class="flex flex-col {{ $msg->user_id === auth()->id() ? 'items-end' : 'items-start' }}">
+                                <div class="max-w-[85%] rounded-2xl px-4 py-2 {{ $msg->user_id === auth()->id() ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-700 dark:text-white rounded-tl-none shadow-sm' }}">
+                                    @if($msg->message)
+                                        <div class="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/20">
+                                            {!! \Illuminate\Support\Str::markdown($msg->message) !!}
+                                        </div>
+                                    @endif
 
-                                @if($msg->attachment_path)
-                                    <div class="mt-2 pt-2 border-t {{ $msg->user_id && $msg->user_id === auth()->id() ? 'border-indigo-400' : 'border-gray-200 dark:border-gray-600' }}">
-                                        @if(in_array(strtolower($msg->attachment_type ?? pathinfo($msg->attachment_path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']))
-                                            <img src="{{ route('debug-notary.messages.attachment', [$bug, $msg]) }}"
-                                                 x-on:click="openFullscreen('{{ route('debug-notary.messages.attachment', [$bug, $msg]) }}')"
-                                                 class="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                                                 alt="Vedhæftning">
-                                        @else
-                                            <a href="{{ route('debug-notary.messages.attachment', [$bug, $msg, 'download' => 1]) }}" target="_blank"
-                                               class="flex items-center gap-2 text-xs {{ $msg->user_id && $msg->user_id === auth()->id() ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-500' }} font-bold transition-colors">
-                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                                </svg>
-                                                {{ basename($msg->attachment_path) }}
+                                    @if($msg->attachment_path)
+                                        <div class="mt-2 pt-2 border-t {{ $msg->user_id === auth()->id() ? 'border-indigo-400' : 'border-gray-200 dark:border-gray-600' }}">
+                                            @if(in_array(strtolower($msg->attachment_type), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']))
+                                                <img src="{{ Storage::disk('public')->url($msg->attachment_path) }}"
+                                                     x-on:click="openFullscreen('{{ Storage::disk('public')->url($msg->attachment_path) }}')"
+                                                     class="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity">
+                                            @else
+                                                <a href="{{ Storage::disk('public')->url($msg->attachment_path) }}" target="_blank"
+                                                   class="flex items-center gap-2 text-xs {{ $msg->user_id === auth()->id() ? 'text-indigo-100 hover:text-white' : 'text-indigo-600 hover:text-indigo-500' }} font-bold transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                    </svg>
+                                                    {{ basename($msg->attachment_path) }}
+                                                </a>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                                <div class="flex items-center mt-1 gap-1.5 px-1">
+                                    @if($msg->user_id !== auth()->id())
+                                        <span class="text-[10px] text-gray-500 font-medium">{{ $msg->user->name ?? 'System' }}</span>
+                                        <span class="text-[10px] text-gray-400">•</span>
+                                    @endif
+                                    <span class="text-[10px] text-gray-400">{{ $msg->created_at->diffForHumans() }}</span>
+
+                                    @if($msg->user_id !== auth()->id() && config('debug-notary.impersonate.enabled', true))
+                                        @php
+                                            $canImpersonate = false;
+                                            try {
+                                                $canImpersonate = method_exists(auth()->user(), 'canImpersonate') && auth()->user()->canImpersonate();
+                                            } catch (\Exception $e) {}
+                                        @endphp
+
+                                        @if($canImpersonate && $msg->user_id)
+                                            <span class="text-[10px] text-gray-400">•</span>
+                                            <a href="{{ config('debug-notary.impersonate.prefix', '/impersonate/take/') }}{{ $msg->user_id }}"
+                                               class="text-[10px] text-indigo-600 hover:underline font-bold">
+                                                {{ __('debug-notary::messages.impersonate_user', ['user' => $msg->user->name ?? '']) }}
                                             </a>
                                         @endif
-                                    </div>
-                                @endif
-                            </div>
-                            <div class="flex items-center mt-1 gap-1.5 px-1">
-                                @if(!$msg->user_id || $msg->user_id !== auth()->id())
-                                    <span class="text-[10px] text-gray-500 font-medium">{{ $msg->user ? $msg->user->name : ($msg->user_id ? "User #{$msg->user_id}" : 'System') }}</span>
-                                    <span class="text-[10px] text-gray-400">•</span>
-                                @endif
-                                <span class="text-[10px] text-gray-400">{{ $msg->created_at->diffForHumans() }}</span>
-
-                                @if($msg->user_id && $msg->user_id !== auth()->id() && config('debug-notary.impersonate.enabled', true))
-                                    @php
-                                        $canImpersonate = false;
-                                        try {
-                                            $canImpersonate = method_exists(auth()->user(), 'canImpersonate') && auth()->user()->canImpersonate();
-                                        } catch (\Exception $e) {}
-                                    @endphp
-
-                                    @if($canImpersonate && $msg->user_id)
-                                        <span class="text-[10px] text-gray-400">•</span>
-                                        <a href="{{ config('debug-notary.impersonate.prefix', '/impersonate/take/') }}{{ $msg->user_id }}"
-                                           class="text-[10px] text-indigo-600 hover:underline font-bold">
-                                            {{ __('debug-notary::messages.impersonate_user', ['user' => $msg->user ? $msg->user->name : ($msg->user_id ? "User #{$msg->user_id}" : '')]) }}
-                                        </a>
                                     @endif
-                                @endif
+                                </div>
                             </div>
-                        </div>
+                        @endif
                     @empty
                         <div class="flex flex-col items-center justify-center h-full text-center p-4">
                             <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-3">
