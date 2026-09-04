@@ -20,6 +20,12 @@ return [
     'route_prefix' => env('DEBUG_NOTARY_PREFIX', 'laravel-debug-notary'),
 
     /*
+     * Middleware used for the Debug Notary dashboard and management routes.
+     * Defaults to ['web', 'auth'].
+     */
+    'middleware' => ['web', 'auth'],
+
+    /*
      * Minimum debug level til at registrere bugs.
      * Muligheder: debug, info, notice, warning, error, critical, alert, emergency
      */
