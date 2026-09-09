@@ -20,10 +20,16 @@ class BugsBySeverityPartition extends Partition {
                         return $severity ? $severity->label() : ucfirst((string) $value);
                     })
                     ->colors([
-                        'low'      => '#60a5fa',
-                        'medium'   => '#facc15',
-                        'high'     => '#fb923c',
-                        'critical' => '#f87171',
+                        'low'       => '#60a5fa',
+                        'medium'    => '#facc15',
+                        'high'      => '#fb923c',
+                        'critical'  => '#f87171',
+                        'error'     => '#ef4444',
+                        'warning'   => '#f59e0b',
+                        'info'      => '#3b82f6',
+                        'debug'     => '#94a3b8',
+                        'alert'     => '#dc2626',
+                        'emergency' => '#991b1b',
                     ]);
     }
 }

@@ -98,6 +98,11 @@ class RecordedBug extends Resource {
                      BugStatus::PENDING->value     => 'warning',
                      BugStatus::RESOLVED->value    => 'success',
                      BugStatus::WONT_FIX->value    => 'danger',
+                     'open'                        => 'danger',
+                     'in_progress'                 => 'info',
+                     'pending'                     => 'warning',
+                     'resolved'                    => 'success',
+                     'wont_fix'                    => 'danger',
                  ])
                  ->labels([
                      BugStatus::OPEN->value        => BugStatus::OPEN->label(),
@@ -105,6 +110,11 @@ class RecordedBug extends Resource {
                      BugStatus::PENDING->value     => BugStatus::PENDING->label(),
                      BugStatus::RESOLVED->value    => BugStatus::RESOLVED->label(),
                      BugStatus::WONT_FIX->value    => BugStatus::WONT_FIX->label(),
+                     'open'                        => __('Open'),
+                     'in_progress'                 => __('In Progress'),
+                     'pending'                     => __('Pending'),
+                     'resolved'                    => __('Resolved'),
+                     'wont_fix'                    => __('Won\'t Fix'),
                  ])
                  ->sortable(),
 
@@ -114,12 +124,34 @@ class RecordedBug extends Resource {
                      BugSeverity::MEDIUM->value   => 'warning',
                      BugSeverity::HIGH->value     => 'warning',
                      BugSeverity::CRITICAL->value => 'danger',
+                     'debug'                      => 'info',
+                     'info'                       => 'info',
+                     'notice'                     => 'info',
+                     'low'                        => 'info',
+                     'warning'                    => 'warning',
+                     'medium'                     => 'warning',
+                     'error'                      => 'danger',
+                     'high'                       => 'warning',
+                     'critical'                   => 'danger',
+                     'alert'                      => 'danger',
+                     'emergency'                  => 'danger',
                  ])
                  ->labels([
                      BugSeverity::LOW->value      => BugSeverity::LOW->label(),
                      BugSeverity::MEDIUM->value   => BugSeverity::MEDIUM->label(),
                      BugSeverity::HIGH->value     => BugSeverity::HIGH->label(),
                      BugSeverity::CRITICAL->value => BugSeverity::CRITICAL->label(),
+                     'debug'                      => __('Debug'),
+                     'info'                       => __('Info'),
+                     'notice'                     => __('Notice'),
+                     'low'                        => __('Low'),
+                     'warning'                    => __('Warning'),
+                     'medium'                     => __('Medium'),
+                     'error'                      => __('Error'),
+                     'high'                       => __('High'),
+                     'critical'                   => __('Critical'),
+                     'alert'                      => __('Alert'),
+                     'emergency'                  => __('Emergency'),
                  ])
                  ->sortable(),
 
@@ -127,7 +159,16 @@ class RecordedBug extends Resource {
                  ->map([
                      'system'     => 'info',
                      'manual'     => 'success',
+                     'notary'     => 'success',
                      'javascript' => 'warning',
+                     'error'      => 'danger',
+                 ])
+                 ->labels([
+                     'system'     => __('System'),
+                     'manual'     => __('Manual'),
+                     'notary'     => __('Notary'),
+                     'javascript' => __('JavaScript'),
+                     'error'      => __('Error'),
                  ])
                  ->sortable(),
 

@@ -1,4 +1,12 @@
 <!-- Script dependencies -->
+<script>
+    if (typeof window.Alpine === 'undefined' && !document.querySelector('script[src*="alpinejs"], script[src*="alpine"]')) {
+        const alpineScript = document.createElement('script');
+        alpineScript.src = 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js';
+        alpineScript.defer = true;
+        document.head.appendChild(alpineScript);
+    }
+</script>
 <script src="https://unpkg.com/markerjs2"></script>
 <script>
     function notaryCollector() {
@@ -57,14 +65,14 @@
                 window.DebugNotary = {
                     report: (message, options = {}) => {
                         const event = new CustomEvent('debug-notary-report', {
-                            detail: { message, options }
+                            detail: {message, options}
                         });
                         document.dispatchEvent(event);
                     }
                 };
 
                 document.addEventListener('debug-notary-report', (event) => {
-                    const { message, options } = event.detail;
+                    const {message, options} = event.detail;
                     this.reportManual(message, options);
                 });
             },
@@ -87,12 +95,12 @@
                 };
 
                 try {
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
                     fetch('{{ route('debug-notary.store') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
+                            ...(csrfToken ? {'X-CSRF-TOKEN': csrfToken} : {}),
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify(data)
@@ -123,12 +131,12 @@
                 };
 
                 try {
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
                     fetch('{{ route('debug-notary.store') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
+                            ...(csrfToken ? {'X-CSRF-TOKEN': csrfToken} : {}),
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify(data)
@@ -219,9 +227,12 @@
                 try {
                     const csrfToken = document.querySelector('meta[name="csrf-token"]')
                         ? document.querySelector('meta[name="csrf-token"]').content
-                        : '';
+                        : '{{ csrf_token() }}';
 
                     const formData = new FormData();
+                    if (csrfToken) {
+                        formData.append('_token', csrfToken);
+                    }
                     formData.append('note', this.note);
                     formData.append('tags', this.tags);
                     formData.append('url', this.metadata.url);
@@ -240,7 +251,7 @@
                     const response = await fetch('{{ route('debug-notary.store') }}', {
                         method: 'POST',
                         headers: {
-                            'X-CSRF-TOKEN': csrfToken
+                            ...(csrfToken ? {'X-CSRF-TOKEN': csrfToken} : {})
                         },
                         body: formData
                     });

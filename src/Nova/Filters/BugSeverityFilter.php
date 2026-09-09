@@ -23,6 +23,10 @@ class BugSeverityFilter extends Filter {
             $options[ $severity->label() ] = $severity->value;
         }
 
+        $options['Error']   = 'error';
+        $options['Warning'] = 'warning';
+        $options['Info']    = 'info';
+
         return $options;
     }
 }
