@@ -11,14 +11,15 @@ use Laravel\Nova\Actions\ActionResponse;
 use Laravel\Nova\Fields\ActionFields;
 use Laravel\Nova\Http\Requests\NovaRequest;
 
-class MarkAsOpen extends Action {
-
+class MarkAsOpen extends Action
+{
     use InteractsWithQueue, Queueable;
 
     public $name = 'Mark as Open';
 
-    public function handle( ActionFields $fields, Collection $models ): ActionResponse {
-        foreach ( $models as $model ) {
+    public function handle(ActionFields $fields, Collection $models): ActionResponse
+    {
+        foreach ($models as $model) {
             $model->update([
                 'status' => BugStatus::OPEN->value,
             ]);
@@ -27,7 +28,8 @@ class MarkAsOpen extends Action {
         return ActionResponse::message(__('debug-notary::messages.status_updated'));
     }
 
-    public function fields( NovaRequest $request ): array {
+    public function fields(NovaRequest $request): array
+    {
         return [];
     }
 }

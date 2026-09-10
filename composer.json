@@ -22,7 +22,8 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Dennisbusk\\DebugNotary\\DebugNotaryServiceProvider"
+                "Dennisbusk\\DebugNotary\\DebugNotaryServiceProvider",
+                "Dennisbusk\\DebugNotary\\Nova\\ToolServiceProvider"
             ],
             "aliases": {
                 "DebugNotary": "Dennisbusk\\DebugNotary\\Facades\\DebugNotary"

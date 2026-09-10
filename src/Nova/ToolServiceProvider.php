@@ -3,9 +3,7 @@
 namespace Dennisbusk\DebugNotary\Nova;
 
 use Dennisbusk\DebugNotary\Nova\Http\Middleware\Authorize;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use Laravel\Nova\Http\Requests\NovaRequest;
 use Laravel\Nova\Nova;
 
 class ToolServiceProvider extends ServiceProvider

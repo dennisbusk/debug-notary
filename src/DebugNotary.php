@@ -160,23 +160,28 @@ class DebugNotary
         if (static::$userContextResolver) {
             $context = call_user_func(static::$userContextResolver);
 
+            $userId = $context['user_id'] ?? Auth::id();
+            $userRole = $context['user_role'] ?? null;
+
             return [
-                'user_id' => (string) ($context['user_id'] ?? Auth::id()),
-                'user_role' => (string) ($context['user_role'] ?? null),
+                'user_id' => ($userId !== null && $userId !== '') ? $userId : null,
+                'user_role' => ($userRole !== null && $userRole !== '') ? (string) $userRole : null,
             ];
         }
 
+        $userId = Auth::id();
         $context = [
-            'user_id' => (string) Auth::id(),
+            'user_id' => ($userId !== null && $userId !== '') ? $userId : null,
             'user_role' => null,
         ];
 
         if (Auth::check()) {
             $user = Auth::user();
-            if (isset($user->role)) {
+            if (isset($user->role) && $user->role !== null && $user->role !== '') {
                 $context['user_role'] = (string) $user->role;
             } elseif (method_exists($user, 'getRoleNames')) {
-                $context['user_role'] = (string) $user->getRoleNames()->first();
+                $firstRole = $user->getRoleNames()->first();
+                $context['user_role'] = ($firstRole !== null && $firstRole !== '') ? (string) $firstRole : null;
             }
         }
 
@@ -414,7 +419,7 @@ class DebugNotary
 
         $userModel = config('debug-notary.user_model')
             ?: config('auth.providers.users.model')
-            ?: User::class;
+                ?: User::class;
 
         if (! class_exists($userModel)) {
             return [];

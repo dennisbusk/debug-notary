@@ -101,6 +101,8 @@ class DebugNotaryServiceProvider extends ServiceProvider
         }
 
         if (class_exists(\Laravel\Nova\Nova::class) && config('debug-notary.nova.enabled', true)) {
+            $this->app->register(Nova\ToolServiceProvider::class);
+
             \Laravel\Nova\Nova::serving(function () {
                 if (config('debug-notary.nova.register_resource', true)) {
                     \Laravel\Nova\Nova::resources([

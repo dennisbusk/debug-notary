@@ -58,8 +58,8 @@ class DebugNotaryController extends Controller
             $bug->url = $request->input('url', request()->fullUrl());
             $bug->last_seen_at = now();
             $bug->count += 1;
-            $bug->user_id = $userContext['user_id'] ?? null;
-            $bug->user_role = $userContext['user_role'] ?? null;
+            $bug->user_id = (! empty($userContext['user_id'])) ? $userContext['user_id'] : null;
+            $bug->user_role = (! empty($userContext['user_role'])) ? (string) $userContext['user_role'] : null;
             $bug->browser_data = DebugNotary::maskData($request->input('browser_data', []));
 
             $bug->updateTrendData();
@@ -153,6 +153,8 @@ class DebugNotaryController extends Controller
         }
 
         $userContext = DebugNotary::resolveUserContext();
+        $userId = (! empty($userContext['user_id'])) ? $userContext['user_id'] : null;
+        $userRole = (! empty($userContext['user_role'])) ? (string) $userContext['user_role'] : null;
 
         $bug = RecordedBug::create([
             'log_type' => 'notary',
@@ -167,8 +169,8 @@ class DebugNotaryController extends Controller
             'file' => 'browser',
             'line' => 0,
             'last_seen_at' => now(),
-            'user_id' => $userContext['user_id'],
-            'user_role' => $userContext['user_role'],
+            'user_id' => $userId,
+            'user_role' => $userRole,
         ]);
 
         $bug->updateTrendData();
@@ -190,7 +192,7 @@ class DebugNotaryController extends Controller
             $attachmentName = $attachmentOriginalName;
 
             $bug->messages()->create([
-                'user_id' => $userContext['user_id'],
+                'user_id' => $userId,
                 'message' => __('debug-notary::messages.attachment_added', ['name' => $attachmentOriginalName]),
                 'attachment_path' => $attachmentPath,
                 'attachment_type' => $attachment->getClientMimeType(),
@@ -466,7 +468,7 @@ class DebugNotaryController extends Controller
             if ($data['assigned_to_email']) {
                 $userModel = config('debug-notary.user_model')
                     ?: config('auth.providers.users.model')
-                    ?: User::class;
+                        ?: User::class;
 
                 if (! empty($data['external_user_id']) && class_exists($userModel)) {
                     $newAssignee = $userModel::find($data['external_user_id']);
@@ -527,7 +529,7 @@ class DebugNotaryController extends Controller
 
             $userModel = config('debug-notary.user_model')
                 ?: config('auth.providers.users.model')
-                ?: User::class;
+                    ?: User::class;
 
             $acceptedUser = null;
             if (! empty($data['external_user_id']) && class_exists($userModel)) {

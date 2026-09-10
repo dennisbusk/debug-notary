@@ -227,8 +227,8 @@ class RecordedBug extends Model
                 $bug->updateSeverity();
                 $bug->updateTrendData();
                 $bug->last_seen_at = now();
-                $bug->user_id = $userContext['user_id'];
-                $bug->user_role = $userContext['user_role'];
+                $bug->user_id = ! empty($userContext['user_id']) ? $userContext['user_id'] : null;
+                $bug->user_role = ! empty($userContext['user_role']) ? $userContext['user_role'] : null;
                 $bug->save();
 
                 return $bug;
@@ -240,8 +240,8 @@ class RecordedBug extends Model
                 'file' => $file,
                 'line' => $line,
                 'stack_trace' => $e->getTraceAsString(),
-                'user_id' => $userContext['user_id'],
-                'user_role' => $userContext['user_role'],
+                'user_id' => ! empty($userContext['user_id']) ? $userContext['user_id'] : null,
+                'user_role' => ! empty($userContext['user_role']) ? $userContext['user_role'] : null,
                 'last_seen_at' => now(),
                 'severity' => 'low',
                 'log_type' => 'system',

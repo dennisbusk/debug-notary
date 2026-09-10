@@ -5,10 +5,13 @@ namespace Dennisbusk\DebugNotary\Nova\Resources;
 use Dennisbusk\DebugNotary\Enums\BugSeverity;
 use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Models\RecordedBug as RecordedBugModel;
+use Dennisbusk\DebugNotary\Nova\Actions\AcceptEstimate;
 use Dennisbusk\DebugNotary\Nova\Actions\MarkAsInProgress;
 use Dennisbusk\DebugNotary\Nova\Actions\MarkAsOpen;
 use Dennisbusk\DebugNotary\Nova\Actions\MarkAsResolved;
 use Dennisbusk\DebugNotary\Nova\Actions\MarkAsWontFix;
+use Dennisbusk\DebugNotary\Nova\Actions\SetEstimate;
+use Dennisbusk\DebugNotary\Nova\Filters\BugEstimateFilter;
 use Dennisbusk\DebugNotary\Nova\Filters\BugSeverityFilter;
 use Dennisbusk\DebugNotary\Nova\Filters\BugStatusFilter;
 use Dennisbusk\DebugNotary\Nova\Filters\BugTypeFilter;
@@ -175,6 +178,58 @@ class RecordedBug extends Resource {
             Number::make(__('Count'), 'count')
                   ->sortable(),
 
+            Stack::make(__('Estimate'), [
+                Line::make(__('Estimate'), fn() => $this->formattedEstimate() ?: '-')
+                    ->asHeading(),
+                Line::make(__('Status'), function () {
+                    if ($this->isEstimateAccepted()) {
+                        return '✓ ' . __('debug-notary::messages.estimate_accepted');
+                    }
+                    if ($this->formattedEstimate()) {
+                        return __('debug-notary::messages.estimate_pending');
+                    }
+                    return null;
+                })->asSmall(),
+            ])->onlyOnIndex(),
+
+            Number::make(__('debug-notary::messages.hours'), 'estimate_hours')
+                  ->min(0)
+                  ->step(1)
+                  ->hideFromIndex(),
+
+            Number::make(__('debug-notary::messages.minutes'), 'estimate_minutes')
+                  ->min(0)
+                  ->max(59)
+                  ->step(1)
+                  ->hideFromIndex(),
+
+            Text::make(__('Estimate'), fn() => $this->formattedEstimate() ?: __('debug-notary::messages.estimate_not_set'))
+                ->onlyOnDetail(),
+
+            Badge::make(__('Estimate Status'), function () {
+                if ($this->isEstimateAccepted()) {
+                    return 'accepted';
+                }
+                if ($this->formattedEstimate()) {
+                    return 'pending';
+                }
+                return 'none';
+            })->map([
+                'accepted' => 'success',
+                'pending' => 'warning',
+                'none' => 'info',
+            ])->labels([
+                'accepted' => __('debug-notary::messages.estimate_accepted'),
+                'pending' => __('debug-notary::messages.estimate_pending'),
+                'none' => __('debug-notary::messages.estimate_not_set'),
+            ])->onlyOnDetail(),
+
+            DateTime::make(__('Estimate Accepted At'), 'estimate_accepted_at')
+                    ->onlyOnDetail(),
+
+            Text::make(__('Estimate Accepted By'), fn() => $this->estimateAcceptedByName() ?? '-')
+                ->onlyOnDetail(),
+
             Stack::make(__('Message'), [
                 Line::make(__('Message'), 'message')
                     ->displayUsing(fn( $val ) => Str::limit($val, 100))
@@ -251,6 +306,7 @@ class RecordedBug extends Resource {
             new BugStatusFilter,
             new BugSeverityFilter,
             new BugTypeFilter,
+            new BugEstimateFilter,
         ];
     }
 
@@ -261,6 +317,8 @@ class RecordedBug extends Resource {
      */
     public function actions( NovaRequest $request ): array {
         return [
+            (new SetEstimate)->showInline(),
+            (new AcceptEstimate)->showInline(),
             new MarkAsResolved,
             new MarkAsInProgress,
             new MarkAsOpen,

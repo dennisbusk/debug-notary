@@ -98,8 +98,8 @@ class LogMessageListener
 
         // Brug centraliseret bruger-context logik
         $userContext = DebugNotary::resolveUserContext();
-        $bug->user_id = $userContext['user_id'];
-        $bug->user_role = $userContext['user_role'];
+        $bug->user_id = ! empty($userContext['user_id']) ? $userContext['user_id'] : null;
+        $bug->user_role = ! empty($userContext['user_role']) ? $userContext['user_role'] : null;
 
         // Understøttelse af tenant_id hvis det findes i context eller config
         if (isset($context['tenant_id'])) {
