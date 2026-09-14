@@ -15,6 +15,9 @@ Route::group(['middleware' => $dashboardMiddleware], function () use ($prefix) {
     Route::get($prefix, [DebugNotaryController::class, 'index'])->name('debug-notary.index');
     Route::get($prefix.'/{id}', [DebugNotaryController::class, 'show'])->name('debug-notary.show');
     Route::patch($prefix.'/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
+    Route::patch($prefix.'/{id}/assignee', [DebugNotaryController::class, 'updateAssignee'])->name('debug-notary.update-assignee');
+    Route::patch($prefix.'/{id}/estimate', [DebugNotaryController::class, 'updateEstimate'])->name('debug-notary.update-estimate');
+    Route::post($prefix.'/{id}/estimate/accept', [DebugNotaryController::class, 'acceptEstimate'])->name('debug-notary.accept-estimate');
     Route::delete($prefix.'/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
     Route::post($prefix.'/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
     Route::get($prefix.'/{bug}/messages/{message}/attachment', [DebugNotaryController::class, 'messageAttachment'])->name('debug-notary.messages.attachment');

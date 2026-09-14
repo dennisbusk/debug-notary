@@ -178,6 +178,10 @@ class RecordedBug extends Resource {
             Number::make(__('Count'), 'count')
                   ->sortable(),
 
+            Text::make(__('Handlinger & Tidsestimat'), fn() => $this->renderControlPanelHtml())
+                ->asHtml()
+                ->onlyOnDetail(),
+
             Stack::make(__('Estimate'), [
                 Line::make(__('Estimate'), fn() => $this->formattedEstimate() ?: '-')
                     ->asHeading(),
@@ -324,5 +328,180 @@ class RecordedBug extends Resource {
             new MarkAsOpen,
             new MarkAsWontFix,
         ];
+    }
+
+    /**
+     * Render interactive control panel with Status, Assignee, and Time Estimate matching the original design.
+     */
+    protected function renderControlPanelHtml(): string
+    {
+        /** @var RecordedBugModel $bug */
+        $bug = $this->resource;
+        $id = $bug->id;
+        $prefix = trim(config('debug-notary.route_prefix', 'laravel-debug-notary'), '/');
+        $baseUrl = '/' . $prefix;
+
+        $userModel = config('debug-notary.user_model')
+            ?: config('auth.providers.users.model')
+            ?: \App\Models\User::class;
+        $users = class_exists($userModel) ? $userModel::all() : collect();
+
+        $statuses = [
+            'open' => __('debug-notary::messages.status_open'),
+            'in_progress' => __('debug-notary::messages.status_in_progress'),
+            'pending' => __('debug-notary::messages.status_pending'),
+            'resolved' => __('debug-notary::messages.status_resolved'),
+            'wont_fix' => __('debug-notary::messages.status_wont_fix'),
+        ];
+
+        $currentStatus = is_object($bug->status) ? $bug->status->value : (string) $bug->status;
+
+        $statusButtonsHtml = '';
+        foreach ($statuses as $val => $label) {
+            $isActive = $currentStatus === $val;
+            $btnClass = $isActive
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700';
+            $statusButtonsHtml .= '<button type="button" onclick="debugNotaryUpdateStatus(' . $id . ', \'' . $val . '\')" class="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ' . $btnClass . '">' . e($label) . '</button>';
+        }
+
+        $userOptionsHtml = '<option value="">' . e(__('debug-notary::messages.nobody')) . '</option>';
+        foreach ($users as $u) {
+            $selected = ($bug->assigned_to_id == $u->id) ? ' selected' : '';
+            $userOptionsHtml .= '<option value="' . e($u->id) . '"' . $selected . '>' . e($u->name) . '</option>';
+        }
+
+        $hoursVal = $bug->estimate_hours ?? '';
+        $minutesVal = $bug->estimate_minutes ?? '';
+        $isAccepted = $bug->isEstimateAccepted();
+        $disabledAttr = $isAccepted ? ' disabled' : '';
+
+        $estimateActionsHtml = '';
+        if (! $isAccepted) {
+            $estimateActionsHtml .= '<button type="button" onclick="debugNotaryUpdateEstimate(' . $id . ')" class="inline-flex items-center px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">' . e(__('debug-notary::messages.save_estimate')) . '</button>';
+            if ($bug->formattedEstimate()) {
+                $confirmMsg = addslashes(__('debug-notary::messages.confirm_accept_estimate', ['estimate' => $bug->formattedEstimate()]));
+                $estimateActionsHtml .= '<button type="button" onclick="if(confirm(\'' . $confirmMsg . '\')) { debugNotaryAcceptEstimate(' . $id . '); }" class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' . e(__('debug-notary::messages.accept_estimate')) . '</button>';
+            }
+        } else {
+            $acceptedText = __('debug-notary::messages.estimate_accepted_by', [
+                'name' => $bug->estimateAcceptedByName() ?? __('debug-notary::messages.nobody'),
+                'time' => $bug->estimate_accepted_at?->format('d/m/Y H:i'),
+            ]);
+            $estimateActionsHtml .= '<div class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-[11px] text-green-700 dark:text-green-300 font-medium"><svg class="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' . e($acceptedText) . '</span></div>';
+        }
+
+        $changeStatusTitle = e(__('debug-notary::messages.change_status'));
+        $assignToTitle = e(__('debug-notary::messages.assign_to'));
+        $timeEstimateTitle = e(__('debug-notary::messages.time_estimate'));
+        $hoursLabel = e(__('debug-notary::messages.hours'));
+        $minutesLabel = e(__('debug-notary::messages.minutes'));
+
+        return <<<HTML
+<div class="flex flex-wrap items-center gap-6 py-2">
+    <!-- Status Selector -->
+    <div class="flex flex-col gap-1.5">
+        <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{$changeStatusTitle}</span>
+        <div class="flex flex-wrap gap-1.5">
+            {$statusButtonsHtml}
+        </div>
+    </div>
+
+    <!-- Assignee Selector -->
+    <div class="flex flex-col gap-1.5">
+        <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{$assignToTitle}</span>
+        <select onchange="debugNotaryUpdateAssignee({$id}, this.value)" class="block w-48 pl-3 pr-10 py-1 text-[11px] border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md dark:bg-gray-800 dark:text-gray-300">
+            {$userOptionsHtml}
+        </select>
+    </div>
+
+    <!-- Estimate Section -->
+    <div class="flex flex-col gap-1.5">
+        <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{$timeEstimateTitle}</span>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1">
+                <input type="number" min="0" value="{$hoursVal}" placeholder="0"{$disabledAttr} id="nova_estimate_hours_{$id}" class="w-14 px-2 py-1 text-[11px] border rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-700 focus:ring-indigo-500 focus:border-indigo-500" />
+                <span class="text-xs text-gray-500 font-medium">{$hoursLabel}</span>
+                <input type="number" min="0" max="59" value="{$minutesVal}" placeholder="0"{$disabledAttr} id="nova_estimate_minutes_{$id}" class="w-14 px-2 py-1 text-[11px] border rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-700 focus:ring-indigo-500 focus:border-indigo-500" />
+                <span class="text-xs text-gray-500 font-medium">{$minutesLabel}</span>
+            </div>
+            {$estimateActionsHtml}
+        </div>
+    </div>
+</div>
+
+<script>
+if (typeof window.debugNotaryUpdateStatus === 'undefined') {
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    window.debugNotaryUpdateStatus = function(bugId, status) {
+        fetch('{$baseUrl}/' + bugId + '/status', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ status: status })
+        }).then(function(res) {
+            if (res.ok) { window.location.reload(); }
+            else { res.json().then(function(d) { alert(d.error || 'Fejl under opdatering'); }); }
+        }).catch(function() { window.location.reload(); });
+    };
+
+    window.debugNotaryUpdateAssignee = function(bugId, assigneeId) {
+        fetch('{$baseUrl}/' + bugId + '/assignee', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ assigned_to_id: assigneeId })
+        }).then(function(res) {
+            if (res.ok) { window.location.reload(); }
+            else { res.json().then(function(d) { alert(d.error || 'Fejl under opdatering'); }); }
+        }).catch(function() { window.location.reload(); });
+    };
+
+    window.debugNotaryUpdateEstimate = function(bugId) {
+        var h = document.getElementById('nova_estimate_hours_' + bugId)?.value;
+        var m = document.getElementById('nova_estimate_minutes_' + bugId)?.value;
+        fetch('{$baseUrl}/' + bugId + '/estimate', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ estimate_hours: h, estimate_minutes: m })
+        }).then(function(res) {
+            if (res.ok) { window.location.reload(); }
+            else { res.json().then(function(d) { alert(d.error || 'Fejl under opdatering'); }); }
+        }).catch(function() { window.location.reload(); });
+    };
+
+    window.debugNotaryAcceptEstimate = function(bugId) {
+        fetch('{$baseUrl}/' + bugId + '/estimate/accept', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function(res) {
+            if (res.ok) { window.location.reload(); }
+            else { res.json().then(function(d) { alert(d.error || 'Fejl under godkendelse'); }); }
+        }).catch(function() { window.location.reload(); });
+    };
+}
+</script>
+HTML;
     }
 }

@@ -231,18 +231,185 @@ class DebugNotaryController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|string|in:open,in_progress,resolved',
+            'status' => 'required|string|in:open,in_progress,pending,resolved,wont_fix',
         ]);
 
         $bug = RecordedBug::findOrFail($id);
-        $bug->status = $request->input('status');
-        $bug->save();
+        $oldStatus = $bug->status;
+        $newStatusVal = $request->input('status');
+
+        if ($bug->status->value !== $newStatusVal) {
+            $bug->update(['status' => $newStatusVal]);
+            $bug->refresh();
+            $newStatus = $bug->status;
+
+            DebugNotary::syncBugUpdateToCentral($bug);
+
+            $bug->messages()->create([
+                'user_id' => auth()->id(),
+                'message' => __('debug-notary::messages.history_status_changed', [
+                    'old' => $oldStatus->label(),
+                    'new' => $newStatus->label(),
+                    'user' => auth()->user()?->name ?? 'System',
+                ]),
+            ]);
+        }
 
         if ($request->wantsJson()) {
             return response()->json(['success' => true]);
         }
 
         return redirect()->back()->with('message', __('debug-notary::messages.status_updated'));
+    }
+
+    public function updateAssignee(Request $request, $id)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        $userId = $request->input('assigned_to_id') ?: null;
+        $bug = RecordedBug::findOrFail($id);
+
+        if ($bug->assigned_to_id != $userId) {
+            $bug->update(['assigned_to_id' => $userId]);
+            $bug->load('assignedTo');
+
+            DebugNotary::syncBugUpdateToCentral($bug);
+
+            $assigneeName = $bug->assignedTo?->name ?? __('debug-notary::messages.nobody');
+
+            $bug->messages()->create([
+                'user_id' => auth()->id(),
+                'message' => __('debug-notary::messages.history_assignee_changed', [
+                    'name' => $assigneeName,
+                    'user' => auth()->user()?->name ?? 'System',
+                ]),
+            ]);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->back()->with('message', __('debug-notary::messages.status_updated'));
+    }
+
+    public function updateEstimate(Request $request, $id)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        $bug = RecordedBug::findOrFail($id);
+
+        if ($bug->isEstimateAccepted()) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => __('debug-notary::messages.estimate_locked_error')], 422);
+            }
+            return redirect()->back()->with('error', __('debug-notary::messages.estimate_locked_error'));
+        }
+
+        $request->validate([
+            'estimate_hours' => 'nullable|integer|min:0',
+            'estimate_minutes' => 'nullable|integer|min:0|max:59',
+        ]);
+
+        $hours = $request->input('estimate_hours') !== null && $request->input('estimate_hours') !== '' ? (int) $request->input('estimate_hours') : null;
+        $minutes = $request->input('estimate_minutes') !== null && $request->input('estimate_minutes') !== '' ? (int) $request->input('estimate_minutes') : null;
+
+        if ($hours === 0 && $minutes === 0) {
+            $hours = null;
+            $minutes = null;
+        }
+
+        $bug->update([
+            'estimate_hours' => $hours,
+            'estimate_minutes' => $minutes,
+        ]);
+
+        $bug->refresh();
+        DebugNotary::syncBugUpdateToCentral($bug);
+
+        $userName = auth()->user()?->name ?? 'System';
+        $formatted = $bug->formattedEstimate();
+
+        if ($formatted) {
+            $bug->messages()->create([
+                'user_id' => auth()->id(),
+                'message' => __('debug-notary::messages.history_estimate_set', [
+                    'estimate' => $formatted,
+                    'user' => $userName,
+                ]),
+            ]);
+        } else {
+            $bug->messages()->create([
+                'user_id' => auth()->id(),
+                'message' => __('debug-notary::messages.history_estimate_removed', [
+                    'user' => $userName,
+                ]),
+            ]);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->back()->with('message', __('debug-notary::messages.status_updated'));
+    }
+
+    public function acceptEstimate(Request $request, $id)
+    {
+        if ($gate = config('debug-notary.access_gate')) {
+            Gate::authorize($gate);
+        }
+
+        $bug = RecordedBug::findOrFail($id);
+
+        if ($bug->isEstimateAccepted()) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => __('debug-notary::messages.estimate_accepted')], 422);
+            }
+            return redirect()->back()->with('error', __('debug-notary::messages.estimate_accepted'));
+        }
+
+        if ($bug->estimate_hours === null && $bug->estimate_minutes === null) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => __('debug-notary::messages.estimate_not_set')], 422);
+            }
+            return redirect()->back()->with('error', __('debug-notary::messages.estimate_not_set'));
+        }
+
+        $acceptedAt = now();
+        $user = auth()->user();
+        $userName = $user?->name ?? 'Ukendt';
+
+        $bug->update([
+            'estimate_accepted_at' => $acceptedAt,
+            'estimate_accepted_by_id' => $user?->id,
+            'estimate_accepted_by_name' => $userName,
+        ]);
+
+        $bug->refresh();
+        DebugNotary::syncBugUpdateToCentral($bug);
+
+        $formatted = $bug->formattedEstimate() ?: '0 timer 0 minutter';
+        $dateStr = $acceptedAt->format('d/m/Y H:i');
+
+        $bug->messages()->create([
+            'user_id' => $user?->id,
+            'message' => __('debug-notary::messages.history_estimate_accepted', [
+                'estimate' => $formatted,
+                'user' => $userName,
+                'time' => $dateStr,
+            ]),
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->back()->with('message', __('debug-notary::messages.estimate_accepted'));
     }
 
     public function destroy($id)

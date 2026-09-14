@@ -11,6 +11,13 @@
 <script>
     function notaryCollector() {
         return {
+            isInIframe: (function() {
+                try {
+                    return window.self !== window.top || (window.parent && window.parent !== window);
+                } catch (e) {
+                    return true;
+                }
+            })(),
             isOpen: false,
             isSubmitting: false,
             screenshotUrl: null,
@@ -27,6 +34,16 @@
             },
 
             init() {
+                try {
+                    if (window.self !== window.top || (window.parent && window.parent !== window)) {
+                        this.isInIframe = true;
+                        return;
+                    }
+                } catch (e) {
+                    this.isInIframe = true;
+                    return;
+                }
+
                 document.addEventListener('paste', (event) => {
                     if (!this.isOpen) return;
 
@@ -275,7 +292,23 @@
         };
     }
 </script>
-<div x-data="notaryCollector()" class="fixed bottom-6 right-6 z-[9999]" style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">
+<script>
+    (function() {
+        try {
+            if (window.self !== window.top || (window.parent && window.parent !== window)) {
+                document.documentElement.classList.add('debug-notary-in-iframe');
+            }
+        } catch(e) {
+            document.documentElement.classList.add('debug-notary-in-iframe');
+        }
+    })();
+</script>
+<div x-data="notaryCollector()"
+     x-show="!isInIframe"
+     x-cloak
+     class="fixed bottom-6 right-6 z-[9999] debug-notary-floating-container"
+     :class="{ 'is-in-iframe': isInIframe }"
+     style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">
     <style>
         [x-cloak] {
             display: none !important;
@@ -284,6 +317,12 @@
         /* Ensure marker.js UI is always on top of the modal */
         div[id^="mjs2-"], .mjs2-ui-container {
             z-index: 20000 !important;
+        }
+
+        /* Skjul altid svævende knap og modal hvis siden er indlejret i en iframe */
+        .debug-notary-floating-container.is-in-iframe,
+        html.debug-notary-in-iframe .debug-notary-floating-container {
+            display: none !important;
         }
     </style>
     <!-- Floating Button -->

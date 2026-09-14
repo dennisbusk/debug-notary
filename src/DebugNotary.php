@@ -82,6 +82,9 @@ class DebugNotary
         Route::get($prefix, [DebugNotaryController::class, 'index'])->name('debug-notary.index');
         Route::get($prefix.'/{id}', [DebugNotaryController::class, 'show'])->name('debug-notary.show');
         Route::patch($prefix.'/{id}/status', [DebugNotaryController::class, 'updateStatus'])->name('debug-notary.update-status');
+        Route::patch($prefix.'/{id}/assignee', [DebugNotaryController::class, 'updateAssignee'])->name('debug-notary.update-assignee');
+        Route::patch($prefix.'/{id}/estimate', [DebugNotaryController::class, 'updateEstimate'])->name('debug-notary.update-estimate');
+        Route::post($prefix.'/{id}/estimate/accept', [DebugNotaryController::class, 'acceptEstimate'])->name('debug-notary.accept-estimate');
         Route::delete($prefix.'/{id}', [DebugNotaryController::class, 'destroy'])->name('debug-notary.destroy');
         Route::post($prefix.'/bulk-delete', [DebugNotaryController::class, 'bulkDestroy'])->name('debug-notary.bulk-destroy');
         Route::get($prefix.'/{bug}/messages/{message}/attachment', [DebugNotaryController::class, 'messageAttachment'])->name('debug-notary.messages.attachment');
@@ -425,17 +428,66 @@ class DebugNotary
             return [];
         }
 
-        return $userModel::all()->map(function ($user) {
-            $role = null;
-            if (isset($user->role)) {
-                $role = (string) $user->role;
-            } elseif (isset($user->user_role)) {
-                $role = (string) $user->user_role;
-            } elseif (method_exists($user, 'getRoleNames')) {
-                $role = (string) $user->getRoleNames()->first();
-            } elseif (method_exists($user, 'roles') && $user->relationLoaded('roles')) {
-                $role = $user->roles->first()?->name;
+        $targetUserIds = config('debug-notary.users_id')
+            ?? config('debug-notary.user_ids')
+            ?? config('debug-notary.sync_user_ids')
+            ?? config('debug-notary.central.users_id')
+            ?? config('debug-notary.central.user_ids')
+            ?? [];
+
+        $targetRoleIds = config('debug-notary.role_ids')
+            ?? config('debug-notary.role_id')
+            ?? config('debug-notary.roles_id')
+            ?? config('debug-notary.roles')
+            ?? config('debug-notary.sync_role_ids')
+            ?? config('debug-notary.central.role_ids')
+            ?? config('debug-notary.central.roles')
+            ?? [];
+
+        $targetUserIds = $this->normalizeFilterArray($targetUserIds);
+        $targetRoleIds = $this->normalizeFilterArray($targetRoleIds);
+
+        $hasUserIdsFilter = ! empty($targetUserIds);
+        $hasRoleIdsFilter = ! empty($targetRoleIds);
+
+        $query = $userModel::query();
+
+        try {
+            $instance = new $userModel;
+            if (method_exists($instance, 'roles')) {
+                $query->with('roles');
             }
+        } catch (\Throwable $e) {
+            // Silently continue if model instantiation fails
+        }
+
+        $users = $query->get();
+
+        return $users->filter(function ($user) use ($targetUserIds, $targetRoleIds, $hasUserIdsFilter, $hasRoleIdsFilter) {
+            if (! $hasUserIdsFilter && ! $hasRoleIdsFilter) {
+                return true;
+            }
+
+            $matchesUserId = false;
+            if ($hasUserIdsFilter) {
+                $userId = (string) $user->getKey();
+                if (in_array($userId, $targetUserIds, true) || (isset($user->id) && in_array((string) $user->id, $targetUserIds, true))) {
+                    $matchesUserId = true;
+                }
+            }
+
+            $matchesRoleId = false;
+            if ($hasRoleIdsFilter) {
+                $matchesRoleId = $this->userMatchesRoleIds($user, $targetRoleIds);
+            }
+
+            if ($hasUserIdsFilter && $hasRoleIdsFilter) {
+                return $matchesUserId || $matchesRoleId;
+            }
+
+            return $hasUserIdsFilter ? $matchesUserId : $matchesRoleId;
+        })->map(function ($user) {
+            $role = $this->resolveRoleForUser($user);
 
             return [
                 'id' => (string) $user->getKey(),
@@ -444,6 +496,199 @@ class DebugNotary
                 'role' => $role,
             ];
         })->values()->all();
+    }
+
+    /**
+     * Normalize an array or comma-separated string to an array of string values.
+     *
+     * @param  mixed  $input
+     * @return array<int, string>
+     */
+    protected function normalizeFilterArray(mixed $input): array
+    {
+        if (empty($input)) {
+            return [];
+        }
+
+        if (is_string($input)) {
+            $input = explode(',', $input);
+        } elseif (is_numeric($input)) {
+            $input = [$input];
+        }
+
+        if (! is_array($input)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($input as $item) {
+            if ($item === null || $item === '') {
+                continue;
+            }
+            if (is_scalar($item) || (is_object($item) && method_exists($item, '__toString'))) {
+                $val = trim((string) $item);
+                if ($val !== '') {
+                    $normalized[] = $val;
+                }
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * Determine if a user matches any of the given role IDs or role names.
+     *
+     * @param  mixed  $user
+     * @param  array<int, string>  $targetRoleIds
+     * @return bool
+     */
+    protected function userMatchesRoleIds(mixed $user, array $targetRoleIds): bool
+    {
+        if (empty($targetRoleIds) || ! is_object($user)) {
+            return false;
+        }
+
+        // Check $user->role_id
+        if (isset($user->role_id) && $user->role_id !== null && in_array((string) $user->role_id, $targetRoleIds, true)) {
+            return true;
+        }
+
+        // Check $user->role
+        if (isset($user->role) && $user->role !== null) {
+            if (is_object($user->role)) {
+                $roleId = isset($user->role->id) ? (string) $user->role->id : (string) ($user->role->getKey() ?? '');
+                $roleName = (string) ($user->role->name ?? $user->role->slug ?? $user->role->title ?? '');
+                if (($roleId !== '' && in_array($roleId, $targetRoleIds, true)) || ($roleName !== '' && in_array($roleName, $targetRoleIds, true))) {
+                    return true;
+                }
+            } elseif (in_array((string) $user->role, $targetRoleIds, true)) {
+                return true;
+            }
+        }
+
+        // Check $user->user_role
+        if (isset($user->user_role) && $user->user_role !== null && in_array((string) $user->user_role, $targetRoleIds, true)) {
+            return true;
+        }
+
+        // Check $user->role_ids if array
+        if (isset($user->role_ids) && is_array($user->role_ids)) {
+            foreach ($user->role_ids as $rId) {
+                if (in_array((string) $rId, $targetRoleIds, true)) {
+                    return true;
+                }
+            }
+        }
+
+        // Check Spatie getRoleNames or similar
+        if (method_exists($user, 'getRoleNames')) {
+            try {
+                $roleNames = $user->getRoleNames();
+                if ($roleNames instanceof \Illuminate\Support\Collection || is_array($roleNames)) {
+                    foreach ($roleNames as $rName) {
+                        if (in_array((string) $rName, $targetRoleIds, true)) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        // Check Spatie hasAnyRole
+        if (method_exists($user, 'hasAnyRole')) {
+            try {
+                if ($user->hasAnyRole($targetRoleIds)) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        // Check roles relation
+        if (isset($user->roles)) {
+            try {
+                $roles = $user->roles;
+                if ($roles instanceof \Illuminate\Support\Collection || is_array($roles)) {
+                    foreach ($roles as $r) {
+                        if (is_object($r)) {
+                            $rId = (string) ($r->getKey() ?? $r->id ?? $r->role_id ?? '');
+                            $rName = (string) ($r->name ?? $r->slug ?? $r->title ?? '');
+                            if (($rId !== '' && in_array($rId, $targetRoleIds, true)) || ($rName !== '' && in_array($rName, $targetRoleIds, true))) {
+                                return true;
+                            }
+                        } elseif (is_scalar($r) && in_array((string) $r, $targetRoleIds, true)) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve the display role name/string for a user.
+     *
+     * @param  mixed  $user
+     * @return string|null
+     */
+    protected function resolveRoleForUser(mixed $user): ?string
+    {
+        if (! is_object($user)) {
+            return null;
+        }
+
+        if (isset($user->role)) {
+            if (is_object($user->role)) {
+                return (string) ($user->role->name ?? $user->role->title ?? $user->role->getKey() ?? $user->role->id ?? '');
+            }
+
+            return (string) $user->role;
+        }
+
+        if (isset($user->user_role)) {
+            return (string) $user->user_role;
+        }
+
+        if (method_exists($user, 'getRoleNames')) {
+            try {
+                $names = $user->getRoleNames();
+                if ($names instanceof \Illuminate\Support\Collection && $names->isNotEmpty()) {
+                    return (string) $names->first();
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        if (isset($user->roles)) {
+            try {
+                $roles = $user->roles;
+                if ($roles instanceof \Illuminate\Support\Collection && $roles->isNotEmpty()) {
+                    $firstRole = $roles->first();
+                    if (is_object($firstRole)) {
+                        return (string) ($firstRole->name ?? $firstRole->title ?? $firstRole->getKey() ?? $firstRole->id ?? '');
+                    }
+
+                    return (string) $firstRole;
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
+
+        if (isset($user->role_id) && $user->role_id !== null) {
+            return (string) $user->role_id;
+        }
+
+        return null;
     }
 
     /**

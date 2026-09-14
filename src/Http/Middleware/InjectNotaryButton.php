@@ -15,6 +15,9 @@ class InjectNotaryButton
      */
     public function handle(Request $request, Closure $next)
     {
+        $prefix = trim(config('debug-notary.route_prefix', config('debug-notary.prefix', 'laravel-debug-notary')), '/');
+        $path = trim($request->getPathInfo(), '/');
+
         // 1. Quick checks based on the request alone
         if (! config('debug-notary.enabled')
             || ! config('debug-notary.notary_log', true)
@@ -22,7 +25,8 @@ class InjectNotaryButton
             || $request->isXmlHttpRequest()
             || $request->wantsJson()
             || $request->hasHeader('X-Livewire')
-            || str_contains($request->getPathInfo(), '/livewire')
+            || str_contains($path, 'livewire')
+            || ($prefix !== '' && ($path === $prefix || str_starts_with($path, $prefix . '/')))
         ) {
             return $next($request);
         }

@@ -12,6 +12,15 @@
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Debug Notary - Detaljer</title>
             <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+                html, body {
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                }
+                ::-webkit-scrollbar {
+                    display: none;
+                }
+            </style>
             <script>
                 tailwind.config = {
                     darkMode: 'class',
