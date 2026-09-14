@@ -1,0 +1,10 @@
+/* Debug Notary Nova Tool */
+.no-scrollbar::-webkit-scrollbar,
+iframe[src*="debug-notary"]::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar,
+iframe[src*="debug-notary"] {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}

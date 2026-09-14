@@ -25,6 +25,28 @@ class BugBulkActions extends Component
         $this->filters = $filters;
     }
 
+    public function selectAllMatching()
+    {
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('selectAllMatching');
+        } elseif (method_exists($this, 'emitUp')) {
+            $this->emitUp('selectAllMatching');
+        } else {
+            $this->emit('selectAllMatching');
+        }
+    }
+
+    public function clearSelection()
+    {
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('clearSelection');
+        } elseif (method_exists($this, 'emitUp')) {
+            $this->emitUp('clearSelection');
+        } else {
+            $this->emit('clearSelection');
+        }
+    }
+
     public function deleteSelected()
     {
         if (empty($this->selected) && ! $this->allMatchingSelected) {
@@ -38,7 +60,11 @@ class BugBulkActions extends Component
         }
 
         RecordedBug::whereIn('id', $this->selected)->delete();
-        $this->dispatch('bugsDeleted');
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('bugsDeleted');
+        } elseif (method_exists($this, 'emit')) {
+            $this->emit('bugsDeleted');
+        }
         $this->reset(['selected', 'allMatchingSelected']);
         session()->flash('message', __('debug-notary::messages.bugs_deleted', ['count' => count($this->selected)]));
     }
@@ -69,7 +95,11 @@ class BugBulkActions extends Component
         $count = $query->count();
         $query->delete();
 
-        $this->dispatch('bugsDeleted');
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('bugsDeleted');
+        } elseif (method_exists($this, 'emit')) {
+            $this->emit('bugsDeleted');
+        }
         $this->reset(['selected', 'allMatchingSelected']);
         session()->flash('message', __('debug-notary::messages.bugs_deleted', ['count' => $count]));
     }

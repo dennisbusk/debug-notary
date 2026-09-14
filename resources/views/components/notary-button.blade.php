@@ -1,8 +1,23 @@
 <!-- Script dependencies -->
+<script>
+    if (typeof window.Alpine === 'undefined' && !document.querySelector('script[src*="alpinejs"], script[src*="alpine"]')) {
+        const alpineScript = document.createElement('script');
+        alpineScript.src = 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js';
+        alpineScript.defer = true;
+        document.head.appendChild(alpineScript);
+    }
+</script>
 <script src="https://unpkg.com/markerjs2"></script>
 <script>
     function notaryCollector() {
         return {
+            isInIframe: (function() {
+                try {
+                    return window.self !== window.top || (window.parent && window.parent !== window);
+                } catch (e) {
+                    return true;
+                }
+            })(),
             isOpen: false,
             isSubmitting: false,
             screenshotUrl: null,
@@ -19,6 +34,16 @@
             },
 
             init() {
+                try {
+                    if (window.self !== window.top || (window.parent && window.parent !== window)) {
+                        this.isInIframe = true;
+                        return;
+                    }
+                } catch (e) {
+                    this.isInIframe = true;
+                    return;
+                }
+
                 document.addEventListener('paste', (event) => {
                     if (!this.isOpen) return;
 
@@ -52,6 +77,54 @@
                     this.logJsError(message, window.location.href, 0, 0, event.reason);
                 });
                 @endif
+
+                // Global report method for manual logging from JS
+                window.DebugNotary = {
+                    report: (message, options = {}) => {
+                        const event = new CustomEvent('debug-notary-report', {
+                            detail: {message, options}
+                        });
+                        document.dispatchEvent(event);
+                    }
+                };
+
+                document.addEventListener('debug-notary-report', (event) => {
+                    const {message, options} = event.detail;
+                    this.reportManual(message, options);
+                });
+            },
+
+            async reportManual(message, options = {}) {
+                const data = {
+                    message: message,
+                    log_type: 'manual',
+                    severity: options.severity || 'error',
+                    file: options.file || 'browser',
+                    line: options.line || 0,
+                    note: options.note || null,
+                    tags: options.tags || [],
+                    browser_data: {
+                        url: window.location.href,
+                        userAgent: navigator.userAgent,
+                        ...options.context
+                    },
+                    user_context: options.user_context || null
+                };
+
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+                    fetch('{{ route('debug-notary.store') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(csrfToken ? {'X-CSRF-TOKEN': csrfToken} : {}),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                } catch (e) {
+                    // Silent fail
+                }
             },
 
             async logJsError(message, file, line, col, error) {
@@ -75,12 +148,12 @@
                 };
 
                 try {
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
                     fetch('{{ route('debug-notary.store') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
+                            ...(csrfToken ? {'X-CSRF-TOKEN': csrfToken} : {}),
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify(data)
@@ -171,9 +244,12 @@
                 try {
                     const csrfToken = document.querySelector('meta[name="csrf-token"]')
                         ? document.querySelector('meta[name="csrf-token"]').content
-                        : '';
+                        : '{{ csrf_token() }}';
 
                     const formData = new FormData();
+                    if (csrfToken) {
+                        formData.append('_token', csrfToken);
+                    }
                     formData.append('note', this.note);
                     formData.append('tags', this.tags);
                     formData.append('url', this.metadata.url);
@@ -192,7 +268,7 @@
                     const response = await fetch('{{ route('debug-notary.store') }}', {
                         method: 'POST',
                         headers: {
-                            'X-CSRF-TOKEN': csrfToken
+                            ...(csrfToken ? {'X-CSRF-TOKEN': csrfToken} : {})
                         },
                         body: formData
                     });
@@ -216,7 +292,23 @@
         };
     }
 </script>
-<div x-data="notaryCollector()" class="fixed bottom-6 right-6 z-[9999]" style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">
+<script>
+    (function() {
+        try {
+            if (window.self !== window.top || (window.parent && window.parent !== window)) {
+                document.documentElement.classList.add('debug-notary-in-iframe');
+            }
+        } catch(e) {
+            document.documentElement.classList.add('debug-notary-in-iframe');
+        }
+    })();
+</script>
+<div x-data="notaryCollector()"
+     x-show="!isInIframe"
+     x-cloak
+     class="fixed bottom-6 right-6 z-[9999] debug-notary-floating-container"
+     :class="{ 'is-in-iframe': isInIframe }"
+     style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">
     <style>
         [x-cloak] {
             display: none !important;
@@ -225,6 +317,12 @@
         /* Ensure marker.js UI is always on top of the modal */
         div[id^="mjs2-"], .mjs2-ui-container {
             z-index: 20000 !important;
+        }
+
+        /* Skjul altid svævende knap og modal hvis siden er indlejret i en iframe */
+        .debug-notary-floating-container.is-in-iframe,
+        html.debug-notary-in-iframe .debug-notary-floating-container {
+            display: none !important;
         }
     </style>
     <!-- Floating Button -->

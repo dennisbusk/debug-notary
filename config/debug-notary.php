@@ -4,9 +4,40 @@ return [
     'enabled' => env('DEBUG_NOTARY_ENABLED', true),
 
     /*
+     * API Nøgle / Token til validering af synkroniseringsanmodninger fra DebugCentral.
+     */
+    'api_key' => env('DEBUG_NOTARY_API_KEY'),
+
+    /*
+     * Bruger-model der skal anvendes til udtræk og tilknytning af brugere.
+     * Hvis null, anvendes standard auth provider modellen (\App\Models\User::class).
+     */
+    'user_model' => env('DEBUG_NOTARY_USER_MODEL', null),
+
+    /*
+     * Specifikke bruger-ID'er der skal synkroniseres til DebugCentral (users_id array).
+     * Hvis tom eller efterladt som [], synkroniseres alle brugere (eller filtreret efter role_ids hvis angivet).
+     * Kan angives som et array f.eks. [1, 2, 5] eller komma-separeret via .env: DEBUG_NOTARY_USERS_ID=1,2,5
+     */
+    'users_id' => env('DEBUG_NOTARY_USERS_ID') ? array_values(array_filter(array_map('trim', explode(',', env('DEBUG_NOTARY_USERS_ID'))))) : [],
+
+    /*
+     * Rolle-ID'er eller rollenavne for brugere der skal synkroniseres til DebugCentral (role_ids array).
+     * Hvis tom eller efterladt som [], begrænses der ikke på roller.
+     * Kan angives som et array f.eks. [1, 2] eller ['admin', 'developer'] eller komma-separeret via .env: DEBUG_NOTARY_ROLE_IDS=1,2
+     */
+    'role_ids' => env('DEBUG_NOTARY_ROLE_IDS') ? array_values(array_filter(array_map('trim', explode(',', env('DEBUG_NOTARY_ROLE_IDS'))))) : [],
+
+    /*
      * Rute præfiks for Debug Notary oversigten og API.
      */
     'route_prefix' => env('DEBUG_NOTARY_PREFIX', 'laravel-debug-notary'),
+
+    /*
+     * Middleware used for the Debug Notary dashboard and management routes.
+     * Defaults to ['web', 'auth'].
+     */
+    'middleware' => ['web', 'auth'],
 
     /*
      * Minimum debug level til at registrere bugs.
@@ -118,6 +149,7 @@ return [
         'columns' => [
             'type' => true,
             'status' => true,
+            'estimate' => true,
             'trend' => true,
             'last_seen' => true,
             'severity' => true,
@@ -147,5 +179,24 @@ return [
             'php-auth-pw',
             'surfer_token',
         ],
+    ],
+
+    /*
+     * DebugCentral Integration (Server-side logging)
+     */
+    'central' => [
+        'enabled' => env('DEBUG_NOTARY_CENTRAL_ENABLED', false),
+        'api_url' => env('DEBUG_NOTARY_API_URL'),
+        'api_key' => env('DEBUG_NOTARY_API_KEY'),
+        'verify_ssl' => env('DEBUG_NOTARY_CENTRAL_VERIFY_SSL', null),
+    ],
+
+    /*
+     * Laravel Nova Integration
+     */
+    'nova' => [
+        'enabled' => env('DEBUG_NOTARY_NOVA_ENABLED', true),
+        'register_resource' => env('DEBUG_NOTARY_NOVA_RESOURCE', true),
+        'group' => env('DEBUG_NOTARY_NOVA_GROUP', 'System'),
     ],
 ];

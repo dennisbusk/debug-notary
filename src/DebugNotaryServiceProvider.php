@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary;
 
+use Dennisbusk\DebugNotary\Console\SyncUsersCommand;
 use Dennisbusk\DebugNotary\Console\TestNotaryCommand;
 use Dennisbusk\DebugNotary\Http\Livewire\BugBulkActions;
 use Dennisbusk\DebugNotary\Http\Livewire\BugDetail;
@@ -43,6 +44,7 @@ class DebugNotaryServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 TestNotaryCommand::class,
+                SyncUsersCommand::class,
             ]);
 
             $this->publishes([
@@ -96,6 +98,18 @@ class DebugNotaryServiceProvider extends ServiceProvider
             Livewire::component('bug-row', BugRow::class);
             Livewire::component('bug-detail', BugDetail::class);
             Livewire::component('notary-bulk-actions', BugBulkActions::class);
+        }
+
+        if (class_exists(\Laravel\Nova\Nova::class) && config('debug-notary.nova.enabled', true)) {
+            $this->app->register(Nova\ToolServiceProvider::class);
+
+            \Laravel\Nova\Nova::serving(function () {
+                if (config('debug-notary.nova.register_resource', true)) {
+                    \Laravel\Nova\Nova::resources([
+                        Nova\Resources\RecordedBug::class,
+                    ]);
+                }
+            });
         }
     }
 }

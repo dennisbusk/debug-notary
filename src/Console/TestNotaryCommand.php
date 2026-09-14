@@ -33,6 +33,24 @@ class TestNotaryCommand extends Command
         ]);
 
         $this->info('✅ Test bug recorded in database.');
+        $this->info('✅ Test bug videresendt til DebugNotary::error logik.');
+
+        $this->comment('Testing DebugNotary::report() with dummy attachment...');
+        DebugNotary::report('Manual Report with attachment', [
+            'severity' => 'warning',
+            'attachment' => base64_encode('Test attachment content'),
+            'attachment_name' => 'test_file.txt',
+            'tags' => ['test', 'attachment'],
+        ]);
+        $this->info('✅ Manual report with attachment sent to logic.');
+
+        if (config('debug-notary.central.enabled')) {
+            $this->info('🌐 DebugCentral integration is enabled.');
+            $this->line('- URL: '.config('debug-notary.central.api_url'));
+            $this->comment('Checking if data was sent to Central...');
+        } else {
+            $this->warn('⚠️ DebugCentral integration is disabled.');
+        }
 
         if (config('debug-notary.notifications.enabled')) {
             $this->info('🔔 Notifications are enabled. Checking channels...');
