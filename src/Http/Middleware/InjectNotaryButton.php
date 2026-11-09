@@ -26,7 +26,7 @@ class InjectNotaryButton
             || $request->wantsJson()
             || $request->hasHeader('X-Livewire')
             || str_contains($path, 'livewire')
-            || ($prefix !== '' && ($path === $prefix || str_starts_with($path, $prefix . '/')))
+            || ($prefix !== '' && ($path === $prefix || str_starts_with($path, $prefix.'/')))
         ) {
             return $next($request);
         }

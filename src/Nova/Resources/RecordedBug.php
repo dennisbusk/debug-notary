@@ -2,6 +2,7 @@
 
 namespace Dennisbusk\DebugNotary\Nova\Resources;
 
+use App\Models\User;
 use Dennisbusk\DebugNotary\Enums\BugSeverity;
 use Dennisbusk\DebugNotary\Enums\BugStatus;
 use Dennisbusk\DebugNotary\Models\RecordedBug as RecordedBugModel;
@@ -19,22 +20,25 @@ use Dennisbusk\DebugNotary\Nova\Metrics\BugsBySeverityPartition;
 use Dennisbusk\DebugNotary\Nova\Metrics\BugsTrendPerDay;
 use Dennisbusk\DebugNotary\Nova\Metrics\UnresolvedBugsValue;
 use Illuminate\Support\Str;
+use Laravel\Nova\Actions\Action;
+use Laravel\Nova\Card;
 use Laravel\Nova\Fields\Badge;
 use Laravel\Nova\Fields\Code;
 use Laravel\Nova\Fields\DateTime;
+use Laravel\Nova\Fields\Field;
 use Laravel\Nova\Fields\ID;
 use Laravel\Nova\Fields\Image;
 use Laravel\Nova\Fields\Line;
 use Laravel\Nova\Fields\Number;
-use Laravel\Nova\Fields\Select;
 use Laravel\Nova\Fields\Stack;
 use Laravel\Nova\Fields\Text;
 use Laravel\Nova\Fields\Textarea;
+use Laravel\Nova\Filters\Filter;
 use Laravel\Nova\Http\Requests\NovaRequest;
 use Laravel\Nova\Resource;
 
-class RecordedBug extends Resource {
-
+class RecordedBug extends Resource
+{
     /**
      * The model the resource corresponds to.
      *
@@ -67,147 +71,152 @@ class RecordedBug extends Resource {
     /**
      * Get the logical group associated with the resource.
      */
-    public static function group(): string {
+    public static function group(): string
+    {
         return __(config('debug-notary.nova.group', 'System'));
     }
 
     /**
      * Get the displayable label of the resource.
      */
-    public static function label(): string {
+    public static function label(): string
+    {
         return __('Debug Notary');
     }
 
     /**
      * Get the displayable singular label of the resource.
      */
-    public static function singularLabel(): string {
+    public static function singularLabel(): string
+    {
         return __('Recorded Bug');
     }
 
     /**
      * Get the fields displayed by the resource.
      *
-     * @return array<int, \Laravel\Nova\Fields\Field>
+     * @return array<int, Field>
      */
-    public function fields( NovaRequest $request ): array {
+    public function fields(NovaRequest $request): array
+    {
         return [
             ID::make()->sortable(),
 
             Badge::make(__('Status'), 'status')
-                 ->map([
-                     BugStatus::OPEN->value        => 'danger',
-                     BugStatus::IN_PROGRESS->value => 'info',
-                     BugStatus::PENDING->value     => 'warning',
-                     BugStatus::RESOLVED->value    => 'success',
-                     BugStatus::WONT_FIX->value    => 'danger',
-                     'open'                        => 'danger',
-                     'in_progress'                 => 'info',
-                     'pending'                     => 'warning',
-                     'resolved'                    => 'success',
-                     'wont_fix'                    => 'danger',
-                 ])
-                 ->labels([
-                     BugStatus::OPEN->value        => BugStatus::OPEN->label(),
-                     BugStatus::IN_PROGRESS->value => BugStatus::IN_PROGRESS->label(),
-                     BugStatus::PENDING->value     => BugStatus::PENDING->label(),
-                     BugStatus::RESOLVED->value    => BugStatus::RESOLVED->label(),
-                     BugStatus::WONT_FIX->value    => BugStatus::WONT_FIX->label(),
-                     'open'                        => __('Open'),
-                     'in_progress'                 => __('In Progress'),
-                     'pending'                     => __('Pending'),
-                     'resolved'                    => __('Resolved'),
-                     'wont_fix'                    => __('Won\'t Fix'),
-                 ])
-                 ->sortable(),
+                ->map([
+                    BugStatus::OPEN->value => 'danger',
+                    BugStatus::IN_PROGRESS->value => 'info',
+                    BugStatus::PENDING->value => 'warning',
+                    BugStatus::RESOLVED->value => 'success',
+                    BugStatus::WONT_FIX->value => 'danger',
+                    'open' => 'danger',
+                    'in_progress' => 'info',
+                    'pending' => 'warning',
+                    'resolved' => 'success',
+                    'wont_fix' => 'danger',
+                ])
+                ->labels([
+                    BugStatus::OPEN->value => BugStatus::OPEN->label(),
+                    BugStatus::IN_PROGRESS->value => BugStatus::IN_PROGRESS->label(),
+                    BugStatus::PENDING->value => BugStatus::PENDING->label(),
+                    BugStatus::RESOLVED->value => BugStatus::RESOLVED->label(),
+                    BugStatus::WONT_FIX->value => BugStatus::WONT_FIX->label(),
+                    'open' => __('Open'),
+                    'in_progress' => __('In Progress'),
+                    'pending' => __('Pending'),
+                    'resolved' => __('Resolved'),
+                    'wont_fix' => __('Won\'t Fix'),
+                ])
+                ->sortable(),
 
             Badge::make(__('Severity'), 'severity')
-                 ->map([
-                     BugSeverity::LOW->value      => 'info',
-                     BugSeverity::MEDIUM->value   => 'warning',
-                     BugSeverity::HIGH->value     => 'warning',
-                     BugSeverity::CRITICAL->value => 'danger',
-                     'debug'                      => 'info',
-                     'info'                       => 'info',
-                     'notice'                     => 'info',
-                     'low'                        => 'info',
-                     'warning'                    => 'warning',
-                     'medium'                     => 'warning',
-                     'error'                      => 'danger',
-                     'high'                       => 'warning',
-                     'critical'                   => 'danger',
-                     'alert'                      => 'danger',
-                     'emergency'                  => 'danger',
-                 ])
-                 ->labels([
-                     BugSeverity::LOW->value      => BugSeverity::LOW->label(),
-                     BugSeverity::MEDIUM->value   => BugSeverity::MEDIUM->label(),
-                     BugSeverity::HIGH->value     => BugSeverity::HIGH->label(),
-                     BugSeverity::CRITICAL->value => BugSeverity::CRITICAL->label(),
-                     'debug'                      => __('Debug'),
-                     'info'                       => __('Info'),
-                     'notice'                     => __('Notice'),
-                     'low'                        => __('Low'),
-                     'warning'                    => __('Warning'),
-                     'medium'                     => __('Medium'),
-                     'error'                      => __('Error'),
-                     'high'                       => __('High'),
-                     'critical'                   => __('Critical'),
-                     'alert'                      => __('Alert'),
-                     'emergency'                  => __('Emergency'),
-                 ])
-                 ->sortable(),
+                ->map([
+                    BugSeverity::LOW->value => 'info',
+                    BugSeverity::MEDIUM->value => 'warning',
+                    BugSeverity::HIGH->value => 'warning',
+                    BugSeverity::CRITICAL->value => 'danger',
+                    'debug' => 'info',
+                    'info' => 'info',
+                    'notice' => 'info',
+                    'low' => 'info',
+                    'warning' => 'warning',
+                    'medium' => 'warning',
+                    'error' => 'danger',
+                    'high' => 'warning',
+                    'critical' => 'danger',
+                    'alert' => 'danger',
+                    'emergency' => 'danger',
+                ])
+                ->labels([
+                    BugSeverity::LOW->value => BugSeverity::LOW->label(),
+                    BugSeverity::MEDIUM->value => BugSeverity::MEDIUM->label(),
+                    BugSeverity::HIGH->value => BugSeverity::HIGH->label(),
+                    BugSeverity::CRITICAL->value => BugSeverity::CRITICAL->label(),
+                    'debug' => __('Debug'),
+                    'info' => __('Info'),
+                    'notice' => __('Notice'),
+                    'low' => __('Low'),
+                    'warning' => __('Warning'),
+                    'medium' => __('Medium'),
+                    'error' => __('Error'),
+                    'high' => __('High'),
+                    'critical' => __('Critical'),
+                    'alert' => __('Alert'),
+                    'emergency' => __('Emergency'),
+                ])
+                ->sortable(),
 
             Badge::make(__('Type'), 'log_type')
-                 ->map([
-                     'system'     => 'info',
-                     'manual'     => 'success',
-                     'notary'     => 'success',
-                     'javascript' => 'warning',
-                     'error'      => 'danger',
-                 ])
-                 ->labels([
-                     'system'     => __('System'),
-                     'manual'     => __('Manual'),
-                     'notary'     => __('Notary'),
-                     'javascript' => __('JavaScript'),
-                     'error'      => __('Error'),
-                 ])
-                 ->sortable(),
+                ->map([
+                    'system' => 'info',
+                    'manual' => 'success',
+                    'notary' => 'success',
+                    'javascript' => 'warning',
+                    'error' => 'danger',
+                ])
+                ->labels([
+                    'system' => __('System'),
+                    'manual' => __('Manual'),
+                    'notary' => __('Notary'),
+                    'javascript' => __('JavaScript'),
+                    'error' => __('Error'),
+                ])
+                ->sortable(),
 
             Number::make(__('Count'), 'count')
-                  ->sortable(),
+                ->sortable(),
 
-            Text::make(__('Handlinger & Tidsestimat'), fn() => $this->renderControlPanelHtml())
+            Text::make(__('Handlinger & Tidsestimat'), fn () => $this->renderControlPanelHtml())
                 ->asHtml()
                 ->onlyOnDetail(),
 
             Stack::make(__('Estimate'), [
-                Line::make(__('Estimate'), fn() => $this->formattedEstimate() ?: '-')
+                Line::make(__('Estimate'), fn () => $this->formattedEstimate() ?: '-')
                     ->asHeading(),
                 Line::make(__('Status'), function () {
                     if ($this->isEstimateAccepted()) {
-                        return '✓ ' . __('debug-notary::messages.estimate_accepted');
+                        return '✓ '.__('debug-notary::messages.estimate_accepted');
                     }
                     if ($this->formattedEstimate()) {
                         return __('debug-notary::messages.estimate_pending');
                     }
+
                     return null;
                 })->asSmall(),
             ])->onlyOnIndex(),
 
             Number::make(__('debug-notary::messages.hours'), 'estimate_hours')
-                  ->min(0)
-                  ->step(1)
-                  ->hideFromIndex(),
+                ->min(0)
+                ->step(1)
+                ->hideFromIndex(),
 
             Number::make(__('debug-notary::messages.minutes'), 'estimate_minutes')
-                  ->min(0)
-                  ->max(59)
-                  ->step(1)
-                  ->hideFromIndex(),
+                ->min(0)
+                ->max(59)
+                ->step(1)
+                ->hideFromIndex(),
 
-            Text::make(__('Estimate'), fn() => $this->formattedEstimate() ?: __('debug-notary::messages.estimate_not_set'))
+            Text::make(__('Estimate'), fn () => $this->formattedEstimate() ?: __('debug-notary::messages.estimate_not_set'))
                 ->onlyOnDetail(),
 
             Badge::make(__('Estimate Status'), function () {
@@ -217,6 +226,7 @@ class RecordedBug extends Resource {
                 if ($this->formattedEstimate()) {
                     return 'pending';
                 }
+
                 return 'none';
             })->map([
                 'accepted' => 'success',
@@ -229,39 +239,39 @@ class RecordedBug extends Resource {
             ])->onlyOnDetail(),
 
             DateTime::make(__('Estimate Accepted At'), 'estimate_accepted_at')
-                    ->onlyOnDetail(),
+                ->onlyOnDetail(),
 
-            Text::make(__('Estimate Accepted By'), fn() => $this->estimateAcceptedByName() ?? '-')
+            Text::make(__('Estimate Accepted By'), fn () => $this->estimateAcceptedByName() ?? '-')
                 ->onlyOnDetail(),
 
             Stack::make(__('Message'), [
                 Line::make(__('Message'), 'message')
-                    ->displayUsing(fn( $val ) => Str::limit($val, 100))
+                    ->displayUsing(fn ($val) => Str::limit($val, 100))
                     ->asHeading(),
-                Line::make(__('Location'), fn() => $this->file ? "{$this->file}:{$this->line}" : null)
+                Line::make(__('Location'), fn () => $this->file ? "{$this->file}:{$this->line}" : null)
                     ->asSmall(),
             ])->onlyOnIndex(),
 
             Textarea::make(__('Message'), 'message')
-                    ->alwaysShow()
-                    ->hideFromIndex(),
+                ->alwaysShow()
+                ->hideFromIndex(),
 
             Text::make(__('File'), 'file')
                 ->hideFromIndex(),
 
             Number::make(__('Line'), 'line')
-                  ->hideFromIndex(),
+                ->hideFromIndex(),
 
             Text::make(__('URL'), 'url')
-                ->displayUsing(fn( $val ) => $val ? Str::limit($val, 50) : '-')
+                ->displayUsing(fn ($val) => $val ? Str::limit($val, 50) : '-')
                 ->sortable(),
 
             DateTime::make(__('Last Seen'), 'last_seen_at')
-                    ->sortable(),
+                ->sortable(),
 
             DateTime::make(__('First Seen'), 'created_at')
-                    ->sortable()
-                    ->hideFromIndex(),
+                ->sortable()
+                ->hideFromIndex(),
 
             Text::make(__('User Role'), 'user_role')
                 ->hideFromIndex(),
@@ -281,18 +291,19 @@ class RecordedBug extends Resource {
                 ->hideFromIndex(),
 
             Image::make(__('Screenshot'), 'screenshot_url')
-                 ->thumbnail(fn() => $this->screenshot_url)
-                 ->preview(fn() => $this->screenshot_url)
-                 ->hideFromIndex(),
+                ->thumbnail(fn () => $this->screenshot_url)
+                ->preview(fn () => $this->screenshot_url)
+                ->hideFromIndex(),
         ];
     }
 
     /**
      * Get the cards available for the request.
      *
-     * @return array<int, \Laravel\Nova\Card>
+     * @return array<int, Card>
      */
-    public function cards( NovaRequest $request ): array {
+    public function cards(NovaRequest $request): array
+    {
         return [
             new UnresolvedBugsValue,
             new BugsBySeverityPartition,
@@ -303,9 +314,10 @@ class RecordedBug extends Resource {
     /**
      * Get the filters available for the resource.
      *
-     * @return array<int, \Laravel\Nova\Filters\Filter>
+     * @return array<int, Filter>
      */
-    public function filters( NovaRequest $request ): array {
+    public function filters(NovaRequest $request): array
+    {
         return [
             new BugStatusFilter,
             new BugSeverityFilter,
@@ -317,9 +329,10 @@ class RecordedBug extends Resource {
     /**
      * Get the actions available for the resource.
      *
-     * @return array<int, \Laravel\Nova\Actions\Action>
+     * @return array<int, Action>
      */
-    public function actions( NovaRequest $request ): array {
+    public function actions(NovaRequest $request): array
+    {
         return [
             (new SetEstimate)->showInline(),
             (new AcceptEstimate)->showInline(),
@@ -339,11 +352,11 @@ class RecordedBug extends Resource {
         $bug = $this->resource;
         $id = $bug->id;
         $prefix = trim(config('debug-notary.route_prefix', 'laravel-debug-notary'), '/');
-        $baseUrl = '/' . $prefix;
+        $baseUrl = '/'.$prefix;
 
         $userModel = config('debug-notary.user_model')
             ?: config('auth.providers.users.model')
-            ?: \App\Models\User::class;
+            ?: User::class;
         $users = class_exists($userModel) ? $userModel::all() : collect();
 
         $statuses = [
@@ -362,13 +375,13 @@ class RecordedBug extends Resource {
             $btnClass = $isActive
                 ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700';
-            $statusButtonsHtml .= '<button type="button" onclick="debugNotaryUpdateStatus(' . $id . ', \'' . $val . '\')" class="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ' . $btnClass . '">' . e($label) . '</button>';
+            $statusButtonsHtml .= '<button type="button" onclick="debugNotaryUpdateStatus('.$id.', \''.$val.'\')" class="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-150 '.$btnClass.'">'.e($label).'</button>';
         }
 
-        $userOptionsHtml = '<option value="">' . e(__('debug-notary::messages.nobody')) . '</option>';
+        $userOptionsHtml = '<option value="">'.e(__('debug-notary::messages.nobody')).'</option>';
         foreach ($users as $u) {
             $selected = ($bug->assigned_to_id == $u->id) ? ' selected' : '';
-            $userOptionsHtml .= '<option value="' . e($u->id) . '"' . $selected . '>' . e($u->name) . '</option>';
+            $userOptionsHtml .= '<option value="'.e($u->id).'"'.$selected.'>'.e($u->name).'</option>';
         }
 
         $hoursVal = $bug->estimate_hours ?? '';
@@ -378,17 +391,17 @@ class RecordedBug extends Resource {
 
         $estimateActionsHtml = '';
         if (! $isAccepted) {
-            $estimateActionsHtml .= '<button type="button" onclick="debugNotaryUpdateEstimate(' . $id . ')" class="inline-flex items-center px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">' . e(__('debug-notary::messages.save_estimate')) . '</button>';
+            $estimateActionsHtml .= '<button type="button" onclick="debugNotaryUpdateEstimate('.$id.')" class="inline-flex items-center px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm">'.e(__('debug-notary::messages.save_estimate')).'</button>';
             if ($bug->formattedEstimate()) {
                 $confirmMsg = addslashes(__('debug-notary::messages.confirm_accept_estimate', ['estimate' => $bug->formattedEstimate()]));
-                $estimateActionsHtml .= '<button type="button" onclick="if(confirm(\'' . $confirmMsg . '\')) { debugNotaryAcceptEstimate(' . $id . '); }" class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' . e(__('debug-notary::messages.accept_estimate')) . '</button>';
+                $estimateActionsHtml .= '<button type="button" onclick="if(confirm(\''.$confirmMsg.'\')) { debugNotaryAcceptEstimate('.$id.'); }" class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'.e(__('debug-notary::messages.accept_estimate')).'</button>';
             }
         } else {
             $acceptedText = __('debug-notary::messages.estimate_accepted_by', [
                 'name' => $bug->estimateAcceptedByName() ?? __('debug-notary::messages.nobody'),
                 'time' => $bug->estimate_accepted_at?->format('d/m/Y H:i'),
             ]);
-            $estimateActionsHtml .= '<div class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-[11px] text-green-700 dark:text-green-300 font-medium"><svg class="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>' . e($acceptedText) . '</span></div>';
+            $estimateActionsHtml .= '<div class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-[11px] text-green-700 dark:text-green-300 font-medium"><svg class="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>'.e($acceptedText).'</span></div>';
         }
 
         $changeStatusTitle = e(__('debug-notary::messages.change_status'));

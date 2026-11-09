@@ -10,6 +10,7 @@ use Dennisbusk\DebugNotary\Models\RecordedBug;
 use Dennisbusk\DebugNotary\Models\RecordedBugMessage;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http as LaravelHttp;
@@ -501,7 +502,6 @@ class DebugNotary
     /**
      * Normalize an array or comma-separated string to an array of string values.
      *
-     * @param  mixed  $input
      * @return array<int, string>
      */
     protected function normalizeFilterArray(mixed $input): array
@@ -539,9 +539,7 @@ class DebugNotary
     /**
      * Determine if a user matches any of the given role IDs or role names.
      *
-     * @param  mixed  $user
      * @param  array<int, string>  $targetRoleIds
-     * @return bool
      */
     protected function userMatchesRoleIds(mixed $user, array $targetRoleIds): bool
     {
@@ -585,7 +583,7 @@ class DebugNotary
         if (method_exists($user, 'getRoleNames')) {
             try {
                 $roleNames = $user->getRoleNames();
-                if ($roleNames instanceof \Illuminate\Support\Collection || is_array($roleNames)) {
+                if ($roleNames instanceof Collection || is_array($roleNames)) {
                     foreach ($roleNames as $rName) {
                         if (in_array((string) $rName, $targetRoleIds, true)) {
                             return true;
@@ -612,7 +610,7 @@ class DebugNotary
         if (isset($user->roles)) {
             try {
                 $roles = $user->roles;
-                if ($roles instanceof \Illuminate\Support\Collection || is_array($roles)) {
+                if ($roles instanceof Collection || is_array($roles)) {
                     foreach ($roles as $r) {
                         if (is_object($r)) {
                             $rId = (string) ($r->getKey() ?? $r->id ?? $r->role_id ?? '');
@@ -635,9 +633,6 @@ class DebugNotary
 
     /**
      * Resolve the display role name/string for a user.
-     *
-     * @param  mixed  $user
-     * @return string|null
      */
     protected function resolveRoleForUser(mixed $user): ?string
     {
@@ -660,7 +655,7 @@ class DebugNotary
         if (method_exists($user, 'getRoleNames')) {
             try {
                 $names = $user->getRoleNames();
-                if ($names instanceof \Illuminate\Support\Collection && $names->isNotEmpty()) {
+                if ($names instanceof Collection && $names->isNotEmpty()) {
                     return (string) $names->first();
                 }
             } catch (\Throwable $e) {
@@ -671,7 +666,7 @@ class DebugNotary
         if (isset($user->roles)) {
             try {
                 $roles = $user->roles;
-                if ($roles instanceof \Illuminate\Support\Collection && $roles->isNotEmpty()) {
+                if ($roles instanceof Collection && $roles->isNotEmpty()) {
                     $firstRole = $roles->first();
                     if (is_object($firstRole)) {
                         return (string) ($firstRole->name ?? $firstRole->title ?? $firstRole->getKey() ?? $firstRole->id ?? '');

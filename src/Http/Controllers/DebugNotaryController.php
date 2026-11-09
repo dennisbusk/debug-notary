@@ -307,6 +307,7 @@ class DebugNotaryController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['error' => __('debug-notary::messages.estimate_locked_error')], 422);
             }
+
             return redirect()->back()->with('error', __('debug-notary::messages.estimate_locked_error'));
         }
 
@@ -370,6 +371,7 @@ class DebugNotaryController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['error' => __('debug-notary::messages.estimate_accepted')], 422);
             }
+
             return redirect()->back()->with('error', __('debug-notary::messages.estimate_accepted'));
         }
 
@@ -377,6 +379,7 @@ class DebugNotaryController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['error' => __('debug-notary::messages.estimate_not_set')], 422);
             }
+
             return redirect()->back()->with('error', __('debug-notary::messages.estimate_not_set'));
         }
 
